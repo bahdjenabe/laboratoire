@@ -13,6 +13,13 @@ const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   patient:    ['/mon-espace'],
 };
 
+// Routes interdites par rôle (priment sur ROLE_ALLOWED_PATHS).
+// Le technicien saisit les résultats via la fiche examen ; la consultation
+// de la liste des résultats est réservée au médecin et à l'admin.
+const ROLE_DENIED_PATHS: Partial<Record<Role, string[]>> = {
+  technicien: ['/dashboard/resultats'],
+};
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -55,6 +62,12 @@ export function middleware(request: NextRequest) {
     // Rôle authentifié mais route interdite → redirection vers son espace
     const fallback = ROLE_ALLOWED_PATHS[session.role]?.[0] ?? '/login';
     return NextResponse.redirect(new URL(fallback, request.url));
+  }
+
+  // 5. Routes explicitement interdites pour ce rôle (denylist)
+  const deniedPaths = ROLE_DENIED_PATHS[session.role] ?? [];
+  if (deniedPaths.some((p) => pathname.startsWith(p))) {
+    return NextResponse.redirect(new URL('/dashboard/dashboard', request.url));
   }
 
   return NextResponse.next();

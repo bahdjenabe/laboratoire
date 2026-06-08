@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
+import PatientPicker from "@/components/PatientPicker";
 import { examenSchema, type ExamenInput } from "@/lib/validations";
 import type { StatutExamen } from "@/types";
 
@@ -63,11 +64,14 @@ export default function ExamensPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ExamenInput>({
     resolver: zodResolver(examenSchema),
     defaultValues: { patientId: "", nomExamen: "", prix: 0 },
   });
+  const patientId = watch("patientId");
 
   const patientsMap = useMemo(
     () => new Map(patients.map((p) => [p.id, p])),
@@ -309,25 +313,15 @@ export default function ExamensPage() {
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Patient *
                 </label>
-                <select
-                  {...register("patientId")}
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                    bg-slate-50 text-sm text-slate-900
-                    focus:outline-none focus:border-emerald-500
-                    focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                >
-                  <option value="">Sélectionner un patient...</option>
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.prenom} {p.nom} — {p.telephone}
-                    </option>
-                  ))}
-                </select>
-                {errors.patientId && (
-                  <p className="text-xs text-red-600">
-                    {errors.patientId.message}
-                  </p>
-                )}
+                <input type="hidden" {...register("patientId")} />
+                <PatientPicker
+                  patients={patients}
+                  value={patientId}
+                  onChange={(id) =>
+                    setValue("patientId", id, { shouldValidate: true })
+                  }
+                  error={errors.patientId?.message}
+                />
                 {patients.length === 0 && (
                   <p className="text-xs text-amber-600">
                     Aucun patient. Créez d&apos;abord un patient.
