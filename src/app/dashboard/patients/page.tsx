@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePatients } from "@/hooks/usePatients";
+import { getExamensByPatient } from "@/lib/firestore/examens";
 import { useAuth } from "@/context/AuthContext";
 import type { Patient } from "@/types";
 
@@ -39,6 +40,9 @@ export default function PatientsPage() {
   const [search, setSearch] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
+  // Intégrité : un patient ayant des examens ne peut pas être supprimé.
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [blockCount, setBlockCount] = useState<number | null>(null);
 
   const filtered = patients.filter((p) => {
     const s = search.toLowerCase();
@@ -50,13 +54,33 @@ export default function PatientsPage() {
     );
   });
 
+  // Ouvre la confirmation et vérifie si le patient a des examens.
+  const askDelete = async (id: string) => {
+    setShowConfirm(id);
+    setBlockCount(null);
+    setCheckLoading(true);
+    try {
+      const examens = await getExamensByPatient(id).catch(() => []);
+      setBlockCount(examens.length);
+    } finally {
+      setCheckLoading(false);
+    }
+  };
+
+  const closeConfirm = () => {
+    setShowConfirm(null);
+    setBlockCount(null);
+    setCheckLoading(false);
+  };
+
   const handleDelete = async (id: string) => {
+    if (blockCount && blockCount > 0) return; // garde-fou
     setDeleting(id);
     try {
       await removePatient(id);
     } finally {
       setDeleting(null);
-      setShowConfirm(null);
+      closeConfirm();
     }
   };
 
@@ -246,7 +270,7 @@ export default function PatientsPage() {
                       ✏️
                     </button>
                     <button
-                      onClick={() => setShowConfirm(patient.id)}
+                      onClick={() => askDelete(patient.id)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg
                         bg-slate-100 hover:bg-red-100 hover:text-red-600
                         text-slate-500 transition-colors text-sm"
@@ -267,37 +291,66 @@ export default function PatientsPage() {
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div
-              className="w-12 h-12 bg-red-100 rounded-full flex items-center
-              justify-center text-2xl mx-auto mb-4"
-            >
-              🗑️
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
-              Supprimer ce patient ?
-            </h3>
-            <p className="text-sm text-slate-500 text-center mb-6">
-              Cette action est irréversible. Toutes les données associées seront
-              perdues.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirm(null)}
-                className="flex-1 h-11 rounded-xl border border-slate-200
-                  text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleDelete(showConfirm)}
-                disabled={!!deleting}
-                className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
-                  text-white text-sm font-semibold transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deleting ? "Suppression..." : "Supprimer"}
-              </button>
-            </div>
+            {checkLoading ? (
+              <div className="py-6 text-center">
+                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Vérification...</p>
+              </div>
+            ) : blockCount && blockCount > 0 ? (
+              <>
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+                  ⚠️
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+                  Suppression impossible
+                </h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Ce patient a {blockCount} examen{blockCount > 1 ? "s" : ""}{" "}
+                  associé{blockCount > 1 ? "s" : ""}. Supprimez d&apos;abord ses
+                  examens pour pouvoir le supprimer.
+                </p>
+                <button
+                  onClick={closeConfirm}
+                  className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800
+                    text-white text-sm font-semibold transition-colors"
+                >
+                  J&apos;ai compris
+                </button>
+              </>
+            ) : (
+              <>
+                <div
+                  className="w-12 h-12 bg-red-100 rounded-full flex items-center
+                  justify-center text-2xl mx-auto mb-4"
+                >
+                  🗑️
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+                  Supprimer ce patient ?
+                </h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Cette action est irréversible.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeConfirm}
+                    className="flex-1 h-11 rounded-xl border border-slate-200
+                      text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => handleDelete(showConfirm)}
+                    disabled={!!deleting}
+                    className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
+                      text-white text-sm font-semibold transition-colors
+                      disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleting ? "Suppression..." : "Supprimer"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
