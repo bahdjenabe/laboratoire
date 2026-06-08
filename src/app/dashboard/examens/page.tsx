@@ -7,6 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
+import { getResultatByExamen } from "@/lib/firestore/resultats";
+import { getPaiementsByExamen } from "@/lib/firestore/paiements";
 import PatientPicker from "@/components/PatientPicker";
 import { examenSchema, type ExamenInput } from "@/lib/validations";
 import type { StatutExamen } from "@/types";
@@ -57,6 +59,9 @@ export default function ExamensPage() {
   const [showForm, setShowForm] = useState(false);
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  // Intégrité : vérifie qu'un examen n'a ni résultat ni paiement avant suppression.
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [blockReason, setBlockReason] = useState<string | null>(null);
 
   // Formulaire de création
   const [formError, setFormError] = useState("");
@@ -111,13 +116,39 @@ export default function ExamensPage() {
     }
   };
 
+  // Ouvre la confirmation et vérifie l'existence de données liées.
+  const askDelete = async (id: string) => {
+    setShowConfirm(id);
+    setBlockReason(null);
+    setCheckLoading(true);
+    try {
+      const [res, paies] = await Promise.all([
+        getResultatByExamen(id).catch(() => null),
+        getPaiementsByExamen(id).catch(() => []),
+      ]);
+      const raisons: string[] = [];
+      if (res) raisons.push("un résultat");
+      if (paies.length > 0) raisons.push("un paiement");
+      setBlockReason(raisons.length > 0 ? raisons.join(" et ") : null);
+    } finally {
+      setCheckLoading(false);
+    }
+  };
+
+  const closeConfirm = () => {
+    setShowConfirm(null);
+    setBlockReason(null);
+    setCheckLoading(false);
+  };
+
   const handleDelete = async (id: string) => {
+    if (blockReason) return; // garde-fou
     setDeleting(id);
     try {
       await removeExamen(id);
     } finally {
       setDeleting(null);
-      setShowConfirm(null);
+      closeConfirm();
     }
   };
 
@@ -278,7 +309,7 @@ export default function ExamensPage() {
                 >
                   {peutGerer && (
                     <button
-                      onClick={() => setShowConfirm(examen.id)}
+                      onClick={() => askDelete(examen.id)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg
                         bg-slate-100 hover:bg-red-100 hover:text-red-600
                         text-slate-500 transition-colors text-sm"
@@ -407,33 +438,62 @@ export default function ExamensPage() {
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
-              🗑️
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
-              Supprimer cet examen ?
-            </h3>
-            <p className="text-sm text-slate-500 text-center mb-6">
-              Cette action est irréversible.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirm(null)}
-                className="flex-1 h-11 rounded-xl border border-slate-200
-                  text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleDelete(showConfirm)}
-                disabled={!!deleting}
-                className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
-                  text-white text-sm font-semibold transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deleting ? "Suppression..." : "Supprimer"}
-              </button>
-            </div>
+            {checkLoading ? (
+              <div className="py-6 text-center">
+                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Vérification...</p>
+              </div>
+            ) : blockReason ? (
+              <>
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+                  ⚠️
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+                  Suppression impossible
+                </h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Cet examen a {blockReason} enregistré. Il ne peut pas être
+                  supprimé.
+                </p>
+                <button
+                  onClick={closeConfirm}
+                  className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800
+                    text-white text-sm font-semibold transition-colors"
+                >
+                  J&apos;ai compris
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+                  🗑️
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+                  Supprimer cet examen ?
+                </h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Cette action est irréversible.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeConfirm}
+                    className="flex-1 h-11 rounded-xl border border-slate-200
+                      text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => handleDelete(showConfirm)}
+                    disabled={!!deleting}
+                    className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
+                      text-white text-sm font-semibold transition-colors
+                      disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleting ? "Suppression..." : "Supprimer"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -61,14 +61,12 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrateur",
   medecin: "Medecin",
   technicien: "Technicien",
-  patient: "Patient",
 };
 
 const ROLE_COLORS: Record<Role, string> = {
   admin: "bg-red-100 text-red-700",
   medecin: "bg-emerald-100 text-emerald-700",
   technicien: "bg-blue-100 text-blue-700",
-  patient: "bg-violet-100 text-violet-700",
 };
 
 export default function Sidebar() {

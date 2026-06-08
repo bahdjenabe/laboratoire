@@ -1,4 +1,6 @@
-export type Role = 'admin' | 'medecin' | 'technicien' | 'patient';
+// Le patient ne se connecte pas : il consulte ses résultats via un lien
+// sécurisé (public_resultats/{token}). Aucun rôle « patient » authentifié.
+export type Role = 'admin' | 'medecin' | 'technicien';
 
 export interface User {
   uid: string;

@@ -16,7 +16,6 @@ const REDIRECT_BY_ROLE: Record<Role, string> = {
   // Le médecin atterrit sur sa file de validation des résultats.
   medecin: "/dashboard/resultats",
   technicien: "/dashboard/dashboard",
-  patient: "/mon-espace",
 };
 
 export default function LoginPage() {
@@ -151,11 +150,6 @@ export default function LoginPage() {
                   label: "Technicien",
                   desc: "Saisie des analyses",
                   dot: "bg-blue-400",
-                },
-                {
-                  label: "Patient",
-                  desc: "Consultation en ligne",
-                  dot: "bg-violet-400",
                 },
               ] as const
             ).map((item) => (

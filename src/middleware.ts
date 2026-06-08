@@ -10,7 +10,6 @@ const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
   admin:      ['/dashboard'],
   medecin:    ['/dashboard'],
   technicien: ['/dashboard'],
-  patient:    ['/mon-espace'],
 };
 
 // Routes interdites par rôle (priment sur ROLE_ALLOWED_PATHS).
@@ -81,6 +80,5 @@ export const config = {
     '/resultats/:path*',
     '/paiements/:path*',
     '/personnel/:path*',
-    '/mon-espace/:path*',
   ],
 };

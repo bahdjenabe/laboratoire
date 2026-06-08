@@ -62,7 +62,13 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isAuth();
-      allow write: if hasRole('admin') || request.auth.uid == uid;
+      // Création / suppression d'un compte : admin uniquement.
+      allow create, delete: if hasRole('admin');
+      // L'admin modifie tout. Un utilisateur peut éditer son propre profil
+      // MAIS PAS son rôle (protection contre l'élévation de privilèges).
+      allow update: if hasRole('admin')
+        || (request.auth.uid == uid
+            && request.resource.data.role == resource.data.role);
     }
   }
 }

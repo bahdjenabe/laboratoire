@@ -88,7 +88,12 @@ export default function PatientDetailPage() {
     load();
   }, [load]);
 
+  // Intégrité : on n'autorise pas la suppression d'un patient qui a des
+  // examens (sinon examens/résultats/paiements deviennent orphelins).
+  const aDesExamens = examens.length > 0;
+
   const handleDelete = async () => {
+    if (aDesExamens) return; // garde-fou
     setDeleting(true);
     try {
       await deletePatient(id);
@@ -333,33 +338,59 @@ export default function PatientDetailPage() {
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
-              🗑️
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
-              Supprimer ce patient ?
-            </h3>
-            <p className="text-sm text-slate-500 text-center mb-6">
-              Cette action est irréversible.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 h-11 rounded-xl border border-slate-200
-                  text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
-                  text-white text-sm font-semibold transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deleting ? "Suppression..." : "Supprimer"}
-              </button>
-            </div>
+            {aDesExamens ? (
+              <>
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+                  ⚠️
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+                  Suppression impossible
+                </h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Ce patient a {examens.length} examen
+                  {examens.length > 1 ? "s" : ""} associé
+                  {examens.length > 1 ? "s" : ""}. Supprimez d&apos;abord ses
+                  examens pour pouvoir le supprimer.
+                </p>
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800
+                    text-white text-sm font-semibold transition-colors"
+                >
+                  J&apos;ai compris
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+                  🗑️
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+                  Supprimer ce patient ?
+                </h3>
+                <p className="text-sm text-slate-500 text-center mb-6">
+                  Cette action est irréversible.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowConfirm(false)}
+                    className="flex-1 h-11 rounded-xl border border-slate-200
+                      text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
+                      text-white text-sm font-semibold transition-colors
+                      disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleting ? "Suppression..." : "Supprimer"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
