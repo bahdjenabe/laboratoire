@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuth() { return request.auth != null; }
+    function hasRole(role) {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    
+    match /patients/{id} {
+      allow read: if isAuth();
+      allow create, update: if hasRole('admin') || hasRole('technicien');
+      allow delete: if hasRole('admin');
+    }
+    
+    match /examens/{id} {
+      allow read: if isAuth();
+      allow create: if hasRole('admin') || hasRole('technicien');
+      // Admin/technicien : modification libre.
+      // Médecin : uniquement le changement de statut (validation), pas le contenu.
+      allow update: if hasRole('admin') || hasRole('technicien')
+        || (hasRole('medecin')
+            && request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['statut', 'updatedAt']));
+      allow delete: if hasRole('admin');
+    }
+    
+    match /resultats/{id} {
+      // Collection entièrement privée : aucune exposition publique.
+      // La consultation patient passe par public_resultats (snapshot figé).
+      allow get, list: if isAuth();
+      // Saisie : admin ou technicien (le médecin ne saisit pas).
+      allow create: if hasRole('admin') || hasRole('technicien');
+      allow update: if
+        // Validation : médecin/admin, uniquement les champs de validation.
+        ((hasRole('admin') || hasRole('medecin'))
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['valideParMedecin', 'valideAt', 'token']))
+        // Saisie du contenu : admin/technicien, sans toucher à la validation.
+        || ((hasRole('admin') || hasRole('technicien'))
+          && !request.resource.data.diff(resource.data)
+                .affectedKeys().hasAny(['valideParMedecin', 'valideAt', 'token']));
+      allow delete: if hasRole('admin');
+    }
+
+    match /public_resultats/{token} {
+      // Consultation publique du rapport validé via lien sécurisé (token).
+      // get uniquement : le token (≈192 bits) sert de secret ; pas d'énumération.
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete:
+        if hasRole('admin') || hasRole('medecin') || hasRole('technicien');
+    }
+
+    match /paiements/{id} {
+      allow read: if isAuth();
+      // Encaissement : admin ou technicien (accueil).
+      allow create, update: if hasRole('admin') || hasRole('technicien');
+      // Suppression d'un paiement : admin uniquement (action sensible).
+      allow delete: if hasRole('admin');
+    }
+
+    match /users/{uid} {
+      allow read: if isAuth();
+      allow write: if hasRole('admin') || request.auth.uid == uid;
+    }
+  }
+}
