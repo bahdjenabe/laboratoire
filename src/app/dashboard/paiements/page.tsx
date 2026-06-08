@@ -11,6 +11,7 @@ import { getPatient } from "@/lib/firestore/patients";
 import { getExamen } from "@/lib/firestore/examens";
 import { generateRecu } from "@/lib/pdf/generateRecu";
 import { paiementSchema, type PaiementInput } from "@/lib/validations";
+import ExamenPicker from "@/components/ExamenPicker";
 
 const MODES = ["Espèces", "Mobile Money", "Carte bancaire", "Virement"];
 
@@ -55,7 +56,7 @@ export default function PaiementsPage() {
     },
   });
   const statut = watch("statut");
-  const examenField = register("examenId");
+  const examenId = watch("examenId");
 
   const examensMap = useMemo(
     () => new Map(examens.map((e) => [e.id, e])),
@@ -102,9 +103,9 @@ export default function PaiementsPage() {
   });
 
   // Sélection d'un examen → pré-remplit le montant avec son prix.
-  const handleExamenChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    examenField.onChange(e);
-    const ex = examensMap.get(e.target.value);
+  const handleExamenSelect = (id: string) => {
+    setValue("examenId", id, { shouldValidate: true });
+    const ex = examensMap.get(id);
     if (ex) setValue("montant", ex.prix);
   };
 
@@ -407,27 +408,14 @@ export default function PaiementsPage() {
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Examen *
                 </label>
-                <select
-                  {...examenField}
-                  onChange={handleExamenChange}
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                    bg-slate-50 text-sm text-slate-900
-                    focus:outline-none focus:border-emerald-500
-                    focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                >
-                  <option value="">Sélectionner un examen...</option>
-                  {examensAFacturer.map((ex) => (
-                    <option key={ex.id} value={ex.id}>
-                      {ex.nomExamen} — {patientNom(ex.patientId)} (
-                      {formatGNF(ex.prix)})
-                    </option>
-                  ))}
-                </select>
-                {errors.examenId && (
-                  <p className="text-xs text-red-600">
-                    {errors.examenId.message}
-                  </p>
-                )}
+                <input type="hidden" {...register("examenId")} />
+                <ExamenPicker
+                  examens={examensAFacturer}
+                  patientNom={patientNom}
+                  value={examenId}
+                  onChange={handleExamenSelect}
+                  error={errors.examenId?.message}
+                />
                 {examensAFacturer.length === 0 && (
                   <p className="text-xs text-amber-600">
                     {examens.length === 0
