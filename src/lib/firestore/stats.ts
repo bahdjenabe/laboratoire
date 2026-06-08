@@ -11,7 +11,7 @@ export interface ExamenRecent extends Examen {
 export interface DashboardStats {
   patientsAujourdhui: number;
   totalPatients: number;
-  examensEnCours: number;
+  examensATraiter: number;
   resultatsValides: number;
   revenusDuJour: number;
   examensRecents: ExamenRecent[];
@@ -57,7 +57,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     isToday(toDate(p.createdAt))
   ).length;
 
-  const examensEnCours = examens.filter(e => e.statut === 'en_cours').length;
+  // Examens à traiter = pas encore terminés ni validés.
+  const examensATraiter = examens.filter(
+    e => e.statut === 'en_attente' || e.statut === 'en_cours'
+  ).length;
 
   const resultatsValides = resultats.filter(r => r.valideParMedecin).length;
 
@@ -80,7 +83,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   return {
     patientsAujourdhui,
     totalPatients: patients.length,
-    examensEnCours,
+    examensATraiter,
     resultatsValides,
     revenusDuJour,
     examensRecents,

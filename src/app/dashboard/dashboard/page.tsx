@@ -28,8 +28,8 @@ export default function DashboardPage() {
       border: "border-blue-100",
     },
     {
-      label: "Examens en cours",
-      value: stats ? String(stats.examensEnCours) : "0",
+      label: "Examens à traiter",
+      value: stats ? String(stats.examensATraiter) : "0",
       icon: "🔬",
       bg: "bg-amber-50",
       text: "text-amber-600",
