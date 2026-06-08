@@ -29,6 +29,17 @@ function age(dateNaissance: unknown): string {
   return `${Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25))} ans`;
 }
 
+// Palette (RGB)
+const EMERALD: [number, number, number] = [5, 150, 105];
+const EMERALD_LIGHT: [number, number, number] = [209, 250, 229]; // emerald-100
+const EMERALD_DARK: [number, number, number] = [4, 120, 87]; // emerald-700
+const DARK: [number, number, number] = [15, 23, 42]; // slate-900
+const GRAY: [number, number, number] = [100, 116, 139]; // slate-500
+const LIGHT: [number, number, number] = [248, 250, 252]; // slate-50
+const BORDER: [number, number, number] = [226, 232, 240]; // slate-200
+const AMBER_LIGHT: [number, number, number] = [254, 243, 199];
+const AMBER_DARK: [number, number, number] = [180, 83, 9];
+
 /**
  * Génère et télécharge le rapport PDF d'un résultat d'analyse.
  */
@@ -39,151 +50,204 @@ export function generateReport(
 ): void {
   const doc = new jsPDF();
   const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
   const marginX = 16;
   const contentW = pageW - marginX * 2;
-  let y = 20;
+  doc.setLineWidth(0.2);
 
-  // ── En-tête ───────────────────────────────────────
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(5, 150, 105); // emerald-600
-  doc.text("LabMedical", marginX, y);
+  // ── Bandeau d'en-tête ─────────────────────────────
+  doc.setFillColor(...EMERALD);
+  doc.rect(0, 0, pageW, 34, "F");
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(120);
-  doc.text("Laboratoire d'analyses médicales", marginX, y + 6);
-  doc.text("Conakry, Guinee  -  Tel: +224 600 00 00 00", marginX, y + 11);
-
+  // Logo (carré blanc + initiales)
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(marginX, 9, 16, 16, 3, 3, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.setTextColor(30, 41, 59); // slate-800
-  doc.text("RAPPORT D'ANALYSE", pageW - marginX, y, { align: "right" });
+  doc.setTextColor(...EMERALD);
+  doc.text("LM", marginX + 8, 19.5, { align: "center" });
+
+  // Identité du laboratoire
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(19);
+  doc.text("LabMédical", marginX + 23, 16);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(120);
-  doc.text(`Date : ${formatDate(resultat.createdAt)}`, pageW - marginX, y + 6, {
+  doc.setFontSize(8.5);
+  doc.setTextColor(...EMERALD_LIGHT);
+  doc.text("Laboratoire d'analyses médicales", marginX + 23, 22);
+  doc.text("Conakry, Guinée  |  Tél : +224 600 00 00 00", marginX + 23, 27);
+
+  // Titre + date + référence (à droite)
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("RAPPORT D'ANALYSE", pageW - marginX, 15, { align: "right" });
+  const dateRef = resultat.valideAt ?? resultat.createdAt;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...EMERALD_LIGHT);
+  doc.text(`Date : ${formatDate(dateRef)}`, pageW - marginX, 22, {
     align: "right",
   });
+  const ref = String(resultat.id || examen.id || "")
+    .slice(0, 8)
+    .toUpperCase();
+  if (ref) {
+    doc.text(`Réf : ${ref}`, pageW - marginX, 27, { align: "right" });
+  }
 
-  y += 18;
-  doc.setDrawColor(226, 232, 240); // slate-200
-  doc.line(marginX, y, pageW - marginX, y);
-  y += 10;
+  let y = 46;
 
-  // ── Informations patient ──────────────────────────
+  // ── Carte patient ─────────────────────────────────
+  const cardH = 26;
+  doc.setFillColor(...LIGHT);
+  doc.setDrawColor(...BORDER);
+  doc.roundedRect(marginX, y, contentW, cardH, 2.5, 2.5, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(30, 41, 59);
-  doc.text("Patient", marginX, y);
-  y += 6;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(71, 85, 105); // slate-600
+  doc.setFontSize(8);
+  doc.setTextColor(...EMERALD);
+  doc.text("PATIENT", marginX + 5, y + 7);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...DARK);
+  doc.text(`${patient.prenom} ${patient.nom}`, marginX + 5, y + 15);
   const sexe =
     patient.sexe === "M" ? "Masculin" : patient.sexe === "F" ? "Féminin" : "—";
-  const infos: [string, string][] = [
-    ["Nom complet", `${patient.prenom} ${patient.nom}`],
-    ["Age / Sexe", `${age(patient.dateNaissance)} - ${sexe}`],
-    ["Téléphone", patient.telephone || "—"],
-    ["Groupe sanguin", patient.groupeSanguin || "—"],
-  ];
-  infos.forEach(([label, val]) => {
-    doc.setTextColor(148, 163, 184); // slate-400
-    doc.text(`${label} :`, marginX, y);
-    doc.setTextColor(30, 41, 59);
-    doc.text(String(val), marginX + 40, y);
-    y += 6;
-  });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  doc.text(
+    `${age(patient.dateNaissance)}  |  ${sexe}  |  Tél : ${
+      patient.telephone || "—"
+    }  |  Groupe : ${patient.groupeSanguin || "—"}`,
+    marginX + 5,
+    y + 21.5,
+  );
+  y += cardH + 12;
 
-  y += 4;
-  doc.setDrawColor(226, 232, 240);
-  doc.line(marginX, y, pageW - marginX, y);
-  y += 10;
-
-  // ── Examen ────────────────────────────────────────
+  // ── Titre de l'analyse ────────────────────────────
+  doc.setFillColor(...EMERALD);
+  doc.rect(marginX, y - 4.5, 2.5, 7, "F"); // barre d'accent
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text("ANALYSE", marginX + 6, y - 1.5);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(30, 41, 59);
-  doc.text(`Analyse : ${examen.nomExamen}`, marginX, y);
-  y += 10;
+  doc.setFontSize(13);
+  doc.setTextColor(...DARK);
+  doc.text(examen.nomExamen, marginX + 6, y + 4);
+  y += 12;
 
   // ── Tableau des valeurs ───────────────────────────
   const entries = Object.entries(resultat.valeurs ?? {});
+  const colValX = marginX + contentW * 0.58;
+  const rowH = 9;
+  const tableTop = y;
+
   // En-tête du tableau
-  doc.setFillColor(241, 245, 249); // slate-100
-  doc.rect(marginX, y - 5, contentW, 8, "F");
+  doc.setFillColor(...EMERALD);
+  doc.rect(marginX, y, contentW, rowH, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  doc.text("PARAMÈTRE", marginX + 3, y);
-  doc.text("RÉSULTAT", marginX + contentW * 0.6, y);
-  y += 8;
+  doc.setTextColor(255, 255, 255);
+  doc.text("PARAMÈTRE", marginX + 4, y + 6);
+  doc.text("RÉSULTAT", colValX, y + 6);
+  y += rowH;
 
-  doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   if (entries.length === 0) {
-    doc.setTextColor(148, 163, 184);
-    doc.text("Aucune valeur saisie.", marginX + 3, y);
-    y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...GRAY);
+    doc.text("Aucune valeur saisie.", marginX + 4, y + 6);
+    y += rowH;
   } else {
     entries.forEach(([param, valeur], i) => {
       if (i % 2 === 1) {
-        doc.setFillColor(248, 250, 252); // slate-50
-        doc.rect(marginX, y - 5, contentW, 7, "F");
+        doc.setFillColor(...LIGHT);
+        doc.rect(marginX, y, contentW, rowH, "F");
       }
-      doc.setTextColor(51, 65, 85);
-      doc.text(String(param), marginX + 3, y);
-      doc.setTextColor(15, 23, 42);
-      doc.setFont("helvetica", "bold");
-      doc.text(String(valeur), marginX + contentW * 0.6, y);
       doc.setFont("helvetica", "normal");
-      y += 7;
+      doc.setTextColor(51, 65, 85);
+      doc.text(String(param), marginX + 4, y + 6);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...DARK);
+      doc.text(String(valeur), colValX, y + 6);
+      doc.setDrawColor(...BORDER);
+      doc.line(marginX, y + rowH, marginX + contentW, y + rowH);
+      y += rowH;
     });
   }
 
-  y += 6;
-  doc.setDrawColor(226, 232, 240);
-  doc.line(marginX, y, pageW - marginX, y);
-  y += 10;
+  // Cadre + séparateur de colonnes
+  doc.setDrawColor(...BORDER);
+  doc.rect(marginX, tableTop, contentW, y - tableTop);
+  doc.line(colValX - 4, tableTop, colValX - 4, y);
+  y += 14;
 
   // ── Observations ──────────────────────────────────
   if (resultat.observations) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(30, 41, 59);
-    doc.text("Observations", marginX, y);
-    y += 6;
+    doc.setFontSize(8);
+    doc.setTextColor(...EMERALD);
+    doc.text("OBSERVATIONS", marginX, y);
+    y += 4;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
-    const lines = doc.splitTextToSize(resultat.observations, contentW);
-    doc.text(lines, marginX, y);
-    y += lines.length * 5 + 6;
+    const lines = doc.splitTextToSize(resultat.observations, contentW - 10);
+    const boxH = lines.length * 5 + 8;
+    doc.setFillColor(...LIGHT);
+    doc.setDrawColor(...BORDER);
+    doc.roundedRect(marginX, y, contentW, boxH, 2.5, 2.5, "FD");
+    doc.text(lines, marginX + 5, y + 6);
+    y += boxH + 12;
   }
 
-  // ── Validation ────────────────────────────────────
-  doc.setFontSize(10);
+  // ── Badge de validation ───────────────────────────
+  const badgeH = 11;
   if (resultat.valideParMedecin) {
-    doc.setTextColor(5, 150, 105);
+    doc.setFillColor(...EMERALD_LIGHT);
+    doc.roundedRect(marginX, y, contentW, badgeH, 2.5, 2.5, "F");
     doc.setFont("helvetica", "bold");
-    doc.text("Resultat valide par le medecin", marginX, y);
+    doc.setFontSize(10);
+    doc.setTextColor(...EMERALD_DARK);
+    doc.text(
+      `Résultat validé par le médecin  -  le ${formatDate(dateRef)}`,
+      marginX + 5,
+      y + 7,
+    );
   } else {
-    doc.setTextColor(217, 119, 6); // amber-600
+    doc.setFillColor(...AMBER_LIGHT);
+    doc.roundedRect(marginX, y, contentW, badgeH, 2.5, 2.5, "F");
     doc.setFont("helvetica", "bold");
-    doc.text("Resultat non valide - provisoire", marginX, y);
+    doc.setFontSize(10);
+    doc.setTextColor(...AMBER_DARK);
+    doc.text(
+      "Résultat provisoire - en attente de validation médicale",
+      marginX + 5,
+      y + 7,
+    );
   }
+  y += badgeH + 18;
+
+  // ── Zone signature ────────────────────────────────
+  const sigX = pageW - marginX - 60;
+  doc.setDrawColor(...GRAY);
+  doc.line(sigX, y, pageW - marginX, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  doc.text("Signature et cachet du médecin", sigX, y + 5);
 
   // ── Pied de page ──────────────────────────────────
-  const pageH = doc.internal.pageSize.getHeight();
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(...BORDER);
   doc.line(marginX, pageH - 18, pageW - marginX, pageH - 18);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    "Document genere par LabMedical - Ce rapport est confidentiel.",
+    "Document généré par LabMédical  -  Ce rapport est strictement confidentiel.",
     pageW / 2,
     pageH - 12,
     { align: "center" },

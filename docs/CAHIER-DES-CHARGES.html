@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>Cahier des charges — LabMédical</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b; line-height: 1.55; font-size: 12px; margin: 0;
+  }
+  h1 { font-size: 24px; color: #065f46; border-bottom: 3px solid #10b981;
+       padding-bottom: 8px; margin-top: 0; }
+  h2 { font-size: 18px; color: #0f172a; margin-top: 28px;
+       border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+  h3 { font-size: 14px; color: #334155; margin-top: 18px; }
+  h2, h3 { page-break-after: avoid; }
+  p, li { font-size: 12px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px;
+         font-family: "Consolas", "Courier New", monospace; font-size: 11px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px;
+        overflow-x: auto; font-size: 11px; page-break-inside: avoid; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0;
+          font-size: 11px; page-break-inside: avoid; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 9px; text-align: left;
+           vertical-align: top; }
+  th { background: #f0fdf4; color: #065f46; font-weight: 700; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  blockquote { border-left: 4px solid #10b981; background: #f0fdf4;
+               margin: 10px 0; padding: 8px 14px; color: #475569;
+               border-radius: 0 6px 6px 0; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 22px 0; }
+  a { color: #059669; text-decoration: none; }
+  strong { color: #0f172a; }
+</style></head>
+<body><h1>CAHIER DES CHARGES</h1>
+<h2>Application <strong>LabMédical</strong> — Gestion de laboratoire d&#39;analyses médicales</h2>
+<hr>
+<h3>Suivi du document</h3>
+<table>
+<thead>
+<tr>
+<th>Élément</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Projet</td>
+<td>LabMédical</td>
+</tr>
+<tr>
+<td>Version du document</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>Date</td>
+<td>2026-06-08</td>
+</tr>
+<tr>
+<td>Auteur</td>
+<td>Équipe projet</td>
+</tr>
+<tr>
+<td>Statut</td>
+<td>Référence</td>
+</tr>
+<tr>
+<td>Projet Firebase</td>
+<td><code>laboratoire-f8e84</code></td>
+</tr>
+<tr>
+<td>Dépôt</td>
+<td><code>github.com/bahdjenabe/laboratoire</code></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>Les exigences sont numérotées : <strong>EF</strong> = exigence fonctionnelle,
+<strong>ENF</strong> = exigence non-fonctionnelle, <strong>RG</strong> = règle de gestion.
+Les sections marquées <em>(estimation)</em> doivent être validées par le client.</p>
+</blockquote>
+<hr>
+<h2>SOMMAIRE</h2>
+<ol>
+<li>Introduction</li>
+<li>Périmètre du projet</li>
+<li>Acteurs et rôles</li>
+<li>Exigences fonctionnelles</li>
+<li>Workflow métier</li>
+<li>Règles de gestion</li>
+<li>Exigences non-fonctionnelles</li>
+<li>Architecture technique</li>
+<li>Modèle de données</li>
+<li>Inventaire des écrans</li>
+<li>Plan de tests et critères de recette</li>
+<li>Planning et jalons</li>
+<li>Budget et coûts</li>
+<li>Livrables</li>
+<li>Maintenance et évolutions</li>
+<li>Annexes</li>
+</ol>
+<hr>
+<h2>1. Introduction</h2>
+<h3>1.1 Contexte</h3>
+<p><strong>LabMédical</strong> est une application web de gestion d&#39;un laboratoire d&#39;analyses
+médicales situé en Guinée (Conakry). Elle digitalise l&#39;ensemble du parcours, de
+l&#39;enregistrement du patient à la mise à disposition sécurisée des résultats.</p>
+<h3>1.2 Objectifs</h3>
+<ul>
+<li>Centraliser patients, examens, résultats et paiements dans un outil unique.</li>
+<li>Séparer les responsabilités : <strong>saisie technique</strong> vs <strong>validation médicale</strong>.</li>
+<li>Conditionner la réalisation d&#39;un examen à son <strong>paiement</strong>.</li>
+<li>Garantir la <strong>confidentialité</strong> des résultats et leur consultation par le
+patient via un <strong>lien sécurisé</strong>.</li>
+<li>Fournir une <strong>vision temps réel</strong> de l&#39;activité.</li>
+</ul>
+<h3>1.3 Enjeux</h3>
+<ul>
+<li>Fiabilité des résultats (chaîne de validation médicale).</li>
+<li>Confidentialité des données de santé.</li>
+<li>Traçabilité (qui a saisi, qui a validé, quand).</li>
+<li>Simplicité d&#39;usage pour le personnel d&#39;accueil.</li>
+</ul>
+<h3>1.4 Glossaire</h3>
+<table>
+<thead>
+<tr>
+<th>Terme</th>
+<th>Définition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Examen</strong></td>
+<td>Analyse demandée pour un patient (ex. NFS, glycémie)</td>
+</tr>
+<tr>
+<td><strong>Résultat</strong></td>
+<td>Valeurs mesurées + observations pour un examen</td>
+</tr>
+<tr>
+<td><strong>Validation</strong></td>
+<td>Approbation médicale d&#39;un résultat (acte médico-légal)</td>
+</tr>
+<tr>
+<td><strong>Token</strong></td>
+<td>Clé aléatoire permettant l&#39;accès public à un résultat</td>
+</tr>
+<tr>
+<td><strong>GNF</strong></td>
+<td>Franc guinéen (devise)</td>
+</tr>
+<tr>
+<td><strong>Snapshot public</strong></td>
+<td>Copie figée d&#39;un résultat validé, exposée au patient</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2. Périmètre du projet</h2>
+<h3>2.1 Inclus</h3>
+<ul>
+<li>Authentification et gestion des rôles du personnel.</li>
+<li>Gestion des patients, examens, résultats, paiements, personnel.</li>
+<li>Tableau de bord d&#39;activité.</li>
+<li>Portail patient public (consultation par lien).</li>
+<li>Génération de documents PDF (reçu, rapport).</li>
+</ul>
+<h3>2.2 Exclus (voir §15 — évolutions)</h3>
+<ul>
+<li>Envoi 100 % automatique des notifications (SMS/WhatsApp/e-mail).</li>
+<li>Espace patient authentifié.</li>
+<li>Comptabilité avancée / facturation fiscale.</li>
+<li>Application mobile native.</li>
+<li>Interfaçage avec des automates de laboratoire.</li>
+</ul>
+<hr>
+<h2>3. Acteurs et rôles</h2>
+<table>
+<thead>
+<tr>
+<th>Rôle</th>
+<th>Description</th>
+<th>Connexion</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Administrateur</strong></td>
+<td>Supervision globale, personnel, validation possible</td>
+<td>Oui</td>
+</tr>
+<tr>
+<td><strong>Technicien</strong></td>
+<td>Accueil + exécution : patients, examens, encaissement, saisie</td>
+<td>Oui</td>
+</tr>
+<tr>
+<td><strong>Médecin</strong></td>
+<td>Validation médicale des résultats</td>
+<td>Oui</td>
+</tr>
+<tr>
+<td><strong>Patient</strong></td>
+<td>Consulte ses résultats via lien sécurisé</td>
+<td>Non</td>
+</tr>
+</tbody></table>
+<h3>3.1 Matrice des permissions</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th align="center">Admin</th>
+<th align="center">Technicien</th>
+<th align="center">Médecin</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Créer / modifier un patient</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌ (lecture)</td>
+</tr>
+<tr>
+<td>Supprimer un patient</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Créer / modifier un examen</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌ (lecture)</td>
+</tr>
+<tr>
+<td>Supprimer un examen</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Encaisser un paiement</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Supprimer un paiement</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Démarrer / saisir un résultat</td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td><strong>Valider</strong> un résultat</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>Liste des résultats</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">✅</td>
+</tr>
+<tr>
+<td>Gérer le personnel</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Exigences fonctionnelles</h2>
+<h3>4.1 Authentification &amp; sécurité d&#39;accès</h3>
+<ul>
+<li><strong>EF-01</strong> — Connexion par email + mot de passe.</li>
+<li><strong>EF-02</strong> — Réinitialisation du mot de passe par e-mail.</li>
+<li><strong>EF-03</strong> — Contrôle d&#39;accès aux pages selon le rôle (redirection si interdit).</li>
+<li><strong>EF-04</strong> — Redirection post-connexion selon le rôle (médecin → file de
+validation des résultats).</li>
+<li><strong>EF-05</strong> — Déconnexion automatique après <strong>30 min d&#39;inactivité</strong>, avec une
+modale d&#39;avertissement <strong>1 min</strong> avant et possibilité de rester connecté.</li>
+<li><strong>EF-06</strong> — Déconnexion manuelle.</li>
+</ul>
+<h3>4.2 Tableau de bord</h3>
+<ul>
+<li><strong>EF-07</strong> — Indicateurs : patients du jour, <strong>examens à traiter</strong> (en attente +
+en cours), résultats validés, <strong>revenus du jour</strong>.</li>
+<li><strong>EF-08</strong> — Liste des examens récents (accès direct à la fiche).</li>
+<li><strong>EF-09</strong> — Liste des derniers patients.</li>
+<li><strong>EF-10</strong> — Actualisation manuelle des données.</li>
+</ul>
+<h3>4.3 Gestion des patients</h3>
+<ul>
+<li><strong>EF-11</strong> — Liste des patients avec recherche (nom, prénom, téléphone, email).</li>
+<li><strong>EF-12</strong> — Création d&#39;un patient (identité, date de naissance, sexe,
+téléphone, e-mail, adresse, groupe sanguin, antécédents).</li>
+<li><strong>EF-13</strong> — Modification d&#39;un patient.</li>
+<li><strong>EF-14</strong> — Fiche patient : informations, <strong>historique des examens</strong> et <strong>des
+paiements</strong>, total payé.</li>
+<li><strong>EF-15</strong> — Suppression d&#39;un patient (admin), <strong>bloquée s&#39;il a des examens</strong>.</li>
+</ul>
+<h3>4.4 Gestion des examens</h3>
+<ul>
+<li><strong>EF-16</strong> — Liste des examens avec filtres par statut et recherche
+(examen ou patient).</li>
+<li><strong>EF-17</strong> — Création d&#39;un examen : <strong>sélection du patient par recherche</strong>
+(nom/téléphone, désambiguïsation par date de naissance et sexe), type d&#39;examen
+avec suggestions d&#39;analyses courantes, prix.</li>
+<li><strong>EF-18</strong> — Suivi du statut : <code>en_attente</code> → <code>en_cours</code> → <code>terminé</code> → <code>validé</code>.</li>
+<li><strong>EF-19</strong> — Page détail : progression visuelle, infos patient, actions selon le
+rôle et le statut.</li>
+<li><strong>EF-20</strong> — <strong>Blocage</strong> du démarrage/saisie tant que l&#39;examen n&#39;est pas payé.</li>
+<li><strong>EF-21</strong> — Démarrage de l&#39;analyse (technicien/admin) → <code>en_cours</code>.</li>
+<li><strong>EF-22</strong> — Suppression d&#39;un examen, <strong>bloquée s&#39;il a un résultat ou un
+paiement</strong>.</li>
+</ul>
+<h3>4.5 Résultats</h3>
+<ul>
+<li><strong>EF-23</strong> — Saisie d&#39;un résultat depuis la fiche examen : paramètres dynamiques
+(nom + valeur) et observations.</li>
+<li><strong>EF-24</strong> — La saisie fait passer l&#39;examen en <code>terminé</code>.</li>
+<li><strong>EF-25</strong> — Validation médicale (médecin/admin) → <code>validé</code> + horodatage.</li>
+<li><strong>EF-26</strong> — Un résultat validé n&#39;est plus modifiable.</li>
+<li><strong>EF-27</strong> — Liste des résultats (médecin/admin) avec filtre « À valider /
+Validés » et recherche.</li>
+<li><strong>EF-28</strong> — Génération PDF du rapport d&#39;analyse.</li>
+</ul>
+<h3>4.6 Paiements</h3>
+<ul>
+<li><strong>EF-29</strong> — Encaissement (admin/technicien) : <strong>sélection de l&#39;examen par
+recherche</strong>, montant <strong>pré-rempli</strong> par le prix, mode de paiement, statut.</li>
+<li><strong>EF-30</strong> — Modes de paiement : Espèces, Mobile Money, Carte bancaire, Virement.</li>
+<li><strong>EF-31</strong> — Génération PDF du reçu.</li>
+<li><strong>EF-32</strong> — Suppression d&#39;un paiement (admin uniquement).</li>
+<li><strong>EF-33</strong> — Totaux : encaissé, en attente.</li>
+</ul>
+<h3>4.7 Personnel</h3>
+<ul>
+<li><strong>EF-34</strong> — Liste du personnel (admin).</li>
+<li><strong>EF-35</strong> — Création d&#39;un compte (email, mot de passe, rôle).</li>
+<li><strong>EF-36</strong> — Modification d&#39;un compte (dont le rôle, par l&#39;admin).</li>
+</ul>
+<h3>4.8 Portail patient</h3>
+<ul>
+<li><strong>EF-37</strong> — Consultation publique d&#39;un résultat <strong>validé</strong> via lien token,
+<strong>sans connexion</strong>.</li>
+<li><strong>EF-38</strong> — Affichage : patient, analyse, <strong>date de validation</strong>, valeurs,
+observations.</li>
+<li><strong>EF-39</strong> — Impression / enregistrement PDF côté patient.</li>
+<li><strong>EF-40</strong> — Partage du lien au patient via <strong>WhatsApp / SMS / e-mail</strong> (message
+pré-rempli) depuis la fiche examen, après validation.</li>
+</ul>
+<hr>
+<h2>5. Workflow métier</h2>
+<pre><code>Création patient (technicien/admin)
+   └─► Création examen ───────────► EN ATTENTE
+          └─► Encaissement ────────► (paiement « payé »)
+                 └─► Démarrer ─────► EN COURS
+                        └─► Saisie ► TERMINÉ
+                               └─► Validation médecin ► VALIDÉ (+ horodatage)
+                                      └─► Notification patient (lien token)
+                                             └─► Consultation portail public
+</code></pre>
+<hr>
+<h2>6. Règles de gestion</h2>
+<ul>
+<li><strong>RG-01</strong> — Un examen doit être payé avant démarrage/saisie.</li>
+<li><strong>RG-02</strong> — Seul le médecin (ou l&#39;admin) valide un résultat ; le technicien ne
+valide jamais.</li>
+<li><strong>RG-03</strong> — Un résultat validé est figé (non modifiable).</li>
+<li><strong>RG-04</strong> — Un patient avec examens ne peut être supprimé.</li>
+<li><strong>RG-05</strong> — Un examen avec résultat ou paiement ne peut être supprimé.</li>
+<li><strong>RG-06</strong> — Un utilisateur ne peut pas modifier son propre rôle.</li>
+<li><strong>RG-07</strong> — Le patient n&#39;a pas de compte : il consulte par lien sécurisé.</li>
+</ul>
+<hr>
+<h2>7. Exigences non-fonctionnelles</h2>
+<h3>7.1 Sécurité</h3>
+<ul>
+<li><strong>ENF-01</strong> — Règles d&#39;accès aux données par collection et par champ (côté
+serveur, Firestore).</li>
+<li><strong>ENF-02</strong> — Saisie des résultats : admin/technicien ; validation :
+admin/médecin ; le technicien ne peut écrire aucun champ de validation.</li>
+<li><strong>ENF-03</strong> — Anti-élévation de privilèges (cf. RG-06).</li>
+<li><strong>ENF-04</strong> — Données <code>resultats</code> privées ; consultation patient via <strong>snapshot
+public</strong> accessible uniquement par <strong>token aléatoire (~192 bits)</strong>, <strong>non
+énumérable</strong> et <strong>révocable</strong>.</li>
+<li><strong>ENF-05</strong> — Déconnexion automatique (cf. EF-05).</li>
+</ul>
+<h3>7.2 Confidentialité des données de santé</h3>
+<ul>
+<li><strong>ENF-06</strong> — Le lien patient ne donne accès qu&#39;à <strong>un seul</strong> résultat validé.</li>
+<li><strong>ENF-07</strong> — Aucune donnée interne (identifiants techniques) exposée dans le
+snapshot public.</li>
+<li><em>(À cadrer avec le client : politique de conservation, RGPD/loi locale,
+consentement, archivage.)</em></li>
+</ul>
+<h3>7.3 Performance</h3>
+<ul>
+<li><strong>ENF-08</strong> — Affichage des listes fluide ; sélecteurs limités à 50 résultats
+affichés avec recherche.</li>
+<li><strong>ENF-09</strong> — Chargement initial allégé (cache navigateur de session).</li>
+</ul>
+<h3>7.4 Ergonomie</h3>
+<ul>
+<li><strong>ENF-10</strong> — Interface en français, cohérente, avec retours visuels (états de
+chargement, confirmations, messages d&#39;erreur).</li>
+<li><strong>ENF-11</strong> — Navigation adaptée au rôle (menu filtré).</li>
+</ul>
+<h3>7.5 Disponibilité &amp; compatibilité</h3>
+<ul>
+<li><strong>ENF-12</strong> — Application web accessible via navigateurs modernes (Chrome, Edge,
+Firefox, Safari).</li>
+<li><strong>ENF-13</strong> — Hébergement avec déploiement continu.</li>
+<li><strong>ENF-14</strong> — <em>(Évolution)</em> optimisation mobile (menu repliable).</li>
+</ul>
+<h3>7.6 Maintenabilité</h3>
+<ul>
+<li><strong>ENF-15</strong> — Code TypeScript typé, composants réutilisables, validations
+centralisées (zod).</li>
+</ul>
+<hr>
+<h2>8. Architecture technique</h2>
+<table>
+<thead>
+<tr>
+<th>Couche</th>
+<th>Technologie</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Front / SSR</td>
+<td>Next.js 16 (App Router, middleware)</td>
+</tr>
+<tr>
+<td>Langage / UI</td>
+<td>TypeScript, React 19, TailwindCSS 4</td>
+</tr>
+<tr>
+<td>Formulaires</td>
+<td>react-hook-form + zod</td>
+</tr>
+<tr>
+<td>Authentification</td>
+<td>Firebase Authentication</td>
+</tr>
+<tr>
+<td>Base de données</td>
+<td>Cloud Firestore</td>
+</tr>
+<tr>
+<td>Documents PDF</td>
+<td>jsPDF</td>
+</tr>
+<tr>
+<td>Hébergement front</td>
+<td>Vercel (CI/CD sur push GitHub)</td>
+</tr>
+<tr>
+<td>Backend données</td>
+<td>Firebase (<code>laboratoire-f8e84</code>)</td>
+</tr>
+</tbody></table>
+<ul>
+<li>Contrôle d&#39;accès aux routes : <strong>middleware</strong> (lecture d&#39;un cookie de session).</li>
+<li>Sécurité des données : <strong>règles Firestore</strong> déployées.</li>
+</ul>
+<hr>
+<h2>9. Modèle de données</h2>
+<h3><code>users</code></h3>
+<p><code>uid</code>, <code>email</code>, <code>nom</code>, <code>prenom</code>, <code>role</code> (admin|medecin|technicien), <code>createdAt</code>.</p>
+<h3><code>patients</code></h3>
+<p><code>id</code>, <code>nom</code>, <code>prenom</code>, <code>dateNaissance</code>, <code>sexe</code> (M|F|Autre), <code>telephone</code>,
+<code>email?</code>, <code>adresse?</code>, <code>groupeSanguin?</code>, <code>antecedents?</code>, <code>createdAt</code>.</p>
+<h3><code>examens</code></h3>
+<p><code>id</code>, <code>patientId</code>, <code>nomExamen</code>, <code>technicienId?</code>, <code>medecinId?</code>,
+<code>statut</code> (en_attente|en_cours|termine|valide), <code>prix</code>, <code>createdAt</code>, <code>updatedAt</code>.</p>
+<h3><code>resultats</code></h3>
+<p><code>id</code>, <code>examenId</code>, <code>patientId</code>, <code>valeurs</code> (clé→valeur), <code>observations?</code>,
+<code>valideParMedecin</code>, <code>valideAt?</code>, <code>token?</code>, <code>examenNom?</code>, <code>patientNom?</code>,
+<code>createdAt</code>.</p>
+<h3><code>paiements</code></h3>
+<p><code>id</code>, <code>patientId</code>, <code>examenId</code>, <code>montant</code>, <code>statut</code> (paye|non_paye),
+<code>modePaiement?</code>, <code>createdAt</code>.</p>
+<h3><code>public_resultats/{token}</code></h3>
+<p><code>token</code>, <code>examenNom?</code>, <code>patientNom?</code>, <code>valeurs</code>, <code>observations?</code>, <code>valideAt</code>.
+<em>(Snapshot public figé, sans référence interne.)</em></p>
+<hr>
+<h2>10. Inventaire des écrans</h2>
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Écran</th>
+<th>Accès</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/login</code></td>
+<td>Connexion</td>
+<td>Public</td>
+</tr>
+<tr>
+<td><code>/dashboard/dashboard</code></td>
+<td>Tableau de bord</td>
+<td>Personnel</td>
+</tr>
+<tr>
+<td><code>/dashboard/patients</code></td>
+<td>Liste patients</td>
+<td>Personnel</td>
+</tr>
+<tr>
+<td><code>/dashboard/patients/nouveau</code></td>
+<td>Nouveau patient</td>
+<td>Admin, technicien</td>
+</tr>
+<tr>
+<td><code>/dashboard/patients/[id]</code></td>
+<td>Fiche patient</td>
+<td>Personnel</td>
+</tr>
+<tr>
+<td><code>/dashboard/patients/[id]/modifier</code></td>
+<td>Modifier patient</td>
+<td>Admin, technicien</td>
+</tr>
+<tr>
+<td><code>/dashboard/examens</code></td>
+<td>Liste examens</td>
+<td>Personnel</td>
+</tr>
+<tr>
+<td><code>/dashboard/examens/[id]</code></td>
+<td>Détail examen / saisie / validation</td>
+<td>Personnel</td>
+</tr>
+<tr>
+<td><code>/dashboard/resultats</code></td>
+<td>Liste des résultats</td>
+<td>Admin, médecin</td>
+</tr>
+<tr>
+<td><code>/dashboard/paiements</code></td>
+<td>Paiements</td>
+<td>Admin, technicien</td>
+</tr>
+<tr>
+<td><code>/dashboard/personnel</code></td>
+<td>Gestion du personnel</td>
+<td>Admin</td>
+</tr>
+<tr>
+<td><code>/patient-portal/[token]</code></td>
+<td>Rapport patient</td>
+<td>Public (lien)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. Plan de tests et critères de recette</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scénario</th>
+<th>Critère d&#39;acceptation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>T1</td>
+<td>Connexion par rôle</td>
+<td>Chaque rôle atterrit sur la bonne page, menu adapté</td>
+</tr>
+<tr>
+<td>T2</td>
+<td>Création patient + examen</td>
+<td>Examen créé en « en attente », sélecteur patient par recherche</td>
+</tr>
+<tr>
+<td>T3</td>
+<td>Blocage paiement</td>
+<td>Démarrage impossible tant que non payé</td>
+</tr>
+<tr>
+<td>T4</td>
+<td>Encaissement</td>
+<td>Montant pré-rempli, examen payé</td>
+</tr>
+<tr>
+<td>T5</td>
+<td>Saisie + validation</td>
+<td>Technicien saisit (terminé), médecin valide (validé)</td>
+</tr>
+<tr>
+<td>T6</td>
+<td>Portail patient</td>
+<td>Lien token affiche le rapport validé ; faux token → indisponible</td>
+</tr>
+<tr>
+<td>T7</td>
+<td>Restrictions technicien</td>
+<td>Pas de menu Résultats, URL bloquée, pas de bouton Valider</td>
+</tr>
+<tr>
+<td>T8</td>
+<td>Intégrité suppressions</td>
+<td>Patient avec examen et examen avec résultat/paiement non supprimables</td>
+</tr>
+<tr>
+<td>T9</td>
+<td>Sécurité rôle</td>
+<td>Un non-admin ne peut pas se promouvoir admin</td>
+</tr>
+<tr>
+<td>T10</td>
+<td>Déconnexion auto</td>
+<td>Déconnexion après inactivité avec avertissement</td>
+</tr>
+</tbody></table>
+<p><strong>Recette</strong> : l&#39;application est acceptée lorsque T1→T10 sont validés.</p>
+<hr>
+<h2>12. Planning et jalons <em>(estimation)</em></h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Contenu</th>
+<th>Statut</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>P1 — Fondations</td>
+<td>Auth, rôles, middleware, structure</td>
+<td>✅ Réalisé</td>
+</tr>
+<tr>
+<td>P2 — Cœur métier</td>
+<td>Patients, examens, résultats, paiements</td>
+<td>✅ Réalisé</td>
+</tr>
+<tr>
+<td>P3 — Portail &amp; sécurité</td>
+<td>Portail token, règles Firestore, déconnexion auto</td>
+<td>✅ Réalisé</td>
+</tr>
+<tr>
+<td>P4 — Fiabilisation</td>
+<td>Intégrité, sélecteurs recherche, notifications header</td>
+<td>✅ Réalisé</td>
+</tr>
+<tr>
+<td>P5 — Recette</td>
+<td>Tests T1→T10, corrections</td>
+<td>🔄 En cours</td>
+</tr>
+<tr>
+<td>P6 — Mise en production</td>
+<td>Hébergement définitif, formation, RGPD</td>
+<td>⏳ À faire</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>13. Budget et coûts <em>(estimation)</em></h2>
+<table>
+<thead>
+<tr>
+<th>Poste</th>
+<th>Option actuelle</th>
+<th>Pour production</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Hébergement front</td>
+<td>Vercel (gratuit, usage non commercial)</td>
+<td>Vercel Pro (~20 $/mois) ou Firebase App Hosting</td>
+</tr>
+<tr>
+<td>Backend (Firestore/Auth)</td>
+<td>Firebase Spark (gratuit, quotas)</td>
+<td>Firebase Blaze (à l&#39;usage, alerte budget conseillée)</td>
+</tr>
+<tr>
+<td>Nom de domaine</td>
+<td>—</td>
+<td>~10–15 $/an <em>(optionnel)</em></td>
+</tr>
+<tr>
+<td>Développement / évolutions</td>
+<td>—</td>
+<td>À chiffrer selon backlog §15</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>Pour un petit laboratoire, l&#39;usage reste généralement dans les quotas gratuits ;
+le passage commercial impose toutefois un plan payant (licence Vercel / Blaze).</p>
+</blockquote>
+<hr>
+<h2>14. Livrables</h2>
+<ul>
+<li>Application web déployée (URL).</li>
+<li>Code source (dépôt GitHub).</li>
+<li>Règles de sécurité Firestore.</li>
+<li>Présent cahier des charges.</li>
+<li><em>(À prévoir)</em> guide utilisateur par rôle, procédure de sauvegarde.</li>
+</ul>
+<hr>
+<h2>15. Maintenance et évolutions futures</h2>
+<ol>
+<li><strong>Notifications automatiques</strong> (Twilio / API WhatsApp Business / SMTP).</li>
+<li><strong>Espace patient authentifié</strong>.</li>
+<li><strong>Intégrité côté serveur</strong> (Cloud Functions pour les suppressions/cascades).</li>
+<li><strong>Optimisation mobile</strong> (menu repliable, ergonomie tactile).</li>
+<li><strong>Statistiques &amp; exports</strong> (CA par période, volumétrie, export comptable).</li>
+<li><strong>Archivage / conservation</strong> conforme à la réglementation des données de santé.</li>
+<li><strong>Sauvegardes</strong> automatiques et plan de reprise.</li>
+</ol>
+<hr>
+<h2>16. Annexes</h2>
+<h3>16.1 Analyses courantes proposées à la saisie</h3>
+<p>Hémogramme (NFS), Glycémie à jeun, Test de paludisme (TDR), Groupage sanguin,
+Test VIH, Widal (typhoïde), Créatininémie, Transaminases (ASAT/ALAT), Bilan
+lipidique, Test de grossesse (β-HCG).</p>
+<h3>16.2 Modes de paiement</h3>
+<p>Espèces, Mobile Money, Carte bancaire, Virement.</p>
+<h3>16.3 États d&#39;un examen</h3>
+<p><code>en_attente</code> (créé), <code>en_cours</code> (analyse démarrée), <code>terminé</code> (résultat saisi),
+<code>validé</code> (approuvé par le médecin).</p>
+<hr>
+<p><em>Fin du document — Cahier des charges LabMédical v1.0 (2026-06-08).</em></p>
+</body></html>
