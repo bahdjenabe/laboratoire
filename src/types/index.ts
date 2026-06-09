@@ -13,6 +13,9 @@ export interface User {
 
 export interface Patient {
   id: string;
+  // Matricule lisible attribué à l'enregistrement (ex: P-2026-0042),
+  // unique par année. Sert d'identifiant métier pour retrouver le dossier.
+  numero?: string;
   nom: string;
   prenom: string;
   dateNaissance: Date;

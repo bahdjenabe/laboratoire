@@ -4,6 +4,7 @@ import {
   createPatient,
   updatePatient,
   deletePatient,
+  assignMissingNumeros,
 } from '@/lib/firestore/patients';
 import type { Patient } from '@/types';
 
@@ -31,9 +32,17 @@ export function usePatients() {
 
   const addPatient = async (
     data: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<void> => {
-    await createPatient(data);
+  ): Promise<string> => {
+    const numero = await createPatient(data);
     await fetchPatients();
+    return numero;
+  };
+
+  // Migration : attribue un matricule aux patients qui n'en ont pas encore.
+  const backfillNumeros = async (): Promise<number> => {
+    const count = await assignMissingNumeros();
+    await fetchPatients();
+    return count;
   };
 
   const editPatient = async (
@@ -57,5 +66,6 @@ export function usePatients() {
     addPatient,
     editPatient,
     removePatient,
+    backfillNumeros,
   };
 }

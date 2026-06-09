@@ -69,7 +69,8 @@ export default function PatientPicker({
       .filter((p) => {
         const nom = `${p.prenom} ${p.nom}`.toLowerCase();
         const tel = (p.telephone ?? "").toLowerCase();
-        return nom.includes(q) || tel.includes(q);
+        const num = (p.numero ?? "").toLowerCase();
+        return nom.includes(q) || tel.includes(q) || num.includes(q);
       })
       .slice(0, 50); // limiter l'affichage pour rester fluide
   }, [patients, query]);
@@ -109,6 +110,12 @@ export default function PatientPicker({
               {selected.prenom} {selected.nom}
             </p>
             <p className="text-xs text-slate-400 truncate">
+              {selected.numero && (
+                <span className="font-mono text-emerald-600">
+                  {selected.numero}
+                </span>
+              )}
+              {selected.numero && " • "}
               {selected.telephone}
               {naiss && ` • Né(e) le ${naiss}`}
             </p>
@@ -141,7 +148,7 @@ export default function PatientPicker({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Rechercher un patient (nom ou téléphone)..."
+          placeholder="Rechercher un patient (numéro, nom ou téléphone)..."
           className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200
             bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
             focus:outline-none focus:border-emerald-500
@@ -179,6 +186,12 @@ export default function PatientPicker({
                           {p.prenom} {p.nom}
                         </p>
                         <p className="text-xs text-slate-400 truncate">
+                          {p.numero && (
+                            <span className="font-mono text-emerald-600">
+                              {p.numero}
+                            </span>
+                          )}
+                          {p.numero && " • "}
                           {p.telephone}
                           {naiss && ` • ${naiss}`}
                           {p.sexe && ` • ${p.sexe}`}

@@ -10,23 +10,65 @@ import {
   orderBy,
   where,
   serverTimestamp,
+  runTransaction,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Patient } from '@/types';
 
 const COLLECTION = 'patients';
+const COUNTERS = 'compteurs';
+
+function yearOf(value: unknown): number {
+  if (value instanceof Timestamp) return value.toDate().getFullYear();
+  if (value instanceof Date) return value.getFullYear();
+  return new Date().getFullYear();
+}
+
+// Alloue le prochain matricule de l'année via une transaction sur le compteur
+// `compteurs/patients-{année}` → garantit l'unicité même en accès concurrent.
+async function allocateNumero(year: number): Promise<string> {
+  const counterRef = doc(db, COUNTERS, `patients-${year}`);
+  const seq = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(counterRef);
+    const next = (snap.exists() ? (snap.data().seq as number) : 0) + 1;
+    tx.set(counterRef, { seq: next }, { merge: true });
+    return next;
+  });
+  return `P-${year}-${String(seq).padStart(4, '0')}`;
+}
 
 // ── Créer un patient ──────────────────────────────
+// Retourne le matricule attribué (ex: P-2026-0042).
 export async function createPatient(
   data: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
-  const ref = await addDoc(collection(db, COLLECTION), {
+  const numero = await allocateNumero(new Date().getFullYear());
+  await addDoc(collection(db, COLLECTION), {
     ...data,
+    numero,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  return ref.id;
+  return numero;
+}
+
+// ── Attribuer un matricule aux patients qui n'en ont pas (migration) ──
+// Traite du plus ancien au plus récent, par année de création.
+export async function assignMissingNumeros(): Promise<number> {
+  const all = await getPatients();
+  const missing = all
+    .filter((p) => !p.numero)
+    .sort((a, b) => {
+      const da = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+      const dbb = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+      return da - dbb;
+    });
+  for (const p of missing) {
+    const numero = await allocateNumero(yearOf(p.createdAt));
+    await updateDoc(doc(db, COLLECTION, p.id), { numero });
+  }
+  return missing.length;
 }
 
 // ── Récupérer tous les patients ───────────────────

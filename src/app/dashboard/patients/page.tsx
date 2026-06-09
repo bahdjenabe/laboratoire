@@ -34,7 +34,7 @@ function getAge(value: unknown): string {
 }
 
 export default function PatientsPage() {
-  const { patients, loading, removePatient } = usePatients();
+  const { patients, loading, removePatient, backfillNumeros } = usePatients();
   const { user } = useAuth();
   const router = useRouter();
 
@@ -56,7 +56,8 @@ export default function PatientsPage() {
       p.nom.toLowerCase().includes(s) ||
       p.prenom.toLowerCase().includes(s) ||
       p.telephone.includes(s) ||
-      p.email?.toLowerCase().includes(s)
+      p.email?.toLowerCase().includes(s) ||
+      p.numero?.toLowerCase().includes(s)
     );
   });
 
@@ -69,6 +70,19 @@ export default function PatientsPage() {
   const pageIds = pageItems.map((p) => p.id);
   const allPageSelected =
     pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  // Migration : patients sans matricule (anciens enregistrements).
+  const sansNumero = patients.filter((p) => !p.numero).length;
+  const [backfilling, setBackfilling] = useState(false);
+  const handleBackfill = async () => {
+    setBackfilling(true);
+    try {
+      const n = await backfillNumeros();
+      setBulkMsg(`${n} matricule(s) attribué(s) aux anciens patients.`);
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   const handleBulkDelete = async () => {
     const ids = [...selected];
@@ -134,17 +148,33 @@ export default function PatientsPage() {
             {patients.length > 1 ? "s" : ""}
           </p>
         </div>
-        {peutGerer && (
-          <button
-            onClick={() => router.push("/dashboard/patients/nouveau")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600
-              hover:bg-emerald-700 text-white text-sm font-semibold
-              rounded-xl transition-all shadow-lg shadow-emerald-600/20
-              hover:shadow-emerald-600/30 hover:-translate-y-0.5"
-          >
-            + Nouveau patient
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {estAdmin && sansNumero > 0 && (
+            <button
+              onClick={handleBackfill}
+              disabled={backfilling}
+              title="Attribuer un matricule aux patients qui n'en ont pas"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200
+                hover:bg-slate-50 text-slate-700 text-sm font-semibold
+                rounded-xl transition-colors disabled:opacity-50"
+            >
+              {backfilling
+                ? "Attribution..."
+                : `🔢 Attribuer les matricules (${sansNumero})`}
+            </button>
+          )}
+          {peutGerer && (
+            <button
+              onClick={() => router.push("/dashboard/patients/nouveau")}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600
+                hover:bg-emerald-700 text-white text-sm font-semibold
+                rounded-xl transition-all shadow-lg shadow-emerald-600/20
+                hover:shadow-emerald-600/30 hover:-translate-y-0.5"
+            >
+              + Nouveau patient
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Barre de recherche */}
@@ -284,6 +314,12 @@ export default function PatientsPage() {
                     {patient.prenom} {patient.nom}
                   </p>
                   <p className="text-xs text-slate-400">
+                    {patient.numero && (
+                      <span className="font-mono text-emerald-600">
+                        {patient.numero}
+                      </span>
+                    )}
+                    {patient.numero && " · "}
                     {patient.email ?? "Pas d'email"}
                   </p>
                 </div>

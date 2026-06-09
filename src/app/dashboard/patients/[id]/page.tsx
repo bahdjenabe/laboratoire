@@ -193,6 +193,12 @@ export default function PatientDetailPage() {
               {patient.prenom} {patient.nom}
             </p>
             <p className="text-sm text-slate-400">
+              {patient.numero && (
+                <span className="font-mono text-emerald-600 font-semibold">
+                  {patient.numero}
+                </span>
+              )}
+              {patient.numero && " • "}
               {getAge(patient.dateNaissance)} •{" "}
               {patient.sexe === "M"
                 ? "Masculin"
