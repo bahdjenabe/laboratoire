@@ -12,6 +12,8 @@ import { getPaiementsByExamen } from "@/lib/firestore/paiements";
 import PatientPicker from "@/components/PatientPicker";
 import Pagination from "@/components/Pagination";
 import { usePagination } from "@/hooks/usePagination";
+import { useSelection } from "@/hooks/useSelection";
+import BulkDeleteBar from "@/components/BulkDeleteBar";
 import { examenSchema, type ExamenInput } from "@/lib/validations";
 import type { StatutExamen } from "@/types";
 
@@ -55,6 +57,8 @@ export default function ExamensPage() {
 
   // Médecin = lecture + validation uniquement (pas de création/suppression).
   const peutGerer = user?.role === "admin" || user?.role === "technicien";
+  // Suppression (simple ou multiple) = admin uniquement (règles Firestore).
+  const estAdmin = user?.role === "admin";
 
   const [filtre, setFiltre] = useState<StatutExamen | "tous">("tous");
   const [search, setSearch] = useState("");
@@ -101,7 +105,37 @@ export default function ExamensPage() {
   });
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 10, `${search}|${filtre}`);
+    usePagination(filtered, 5, `${search}|${filtre}`);
+
+  // Sélection multiple (admin) pour suppression groupée.
+  const { selected, toggle, setMany, clear } = useSelection();
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const pageIds = pageItems.map((e) => e.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  const handleBulkDelete = async () => {
+    const ids = [...selected];
+    let deleted = 0;
+    let skipped = 0;
+    for (const id of ids) {
+      const [res, paies] = await Promise.all([
+        getResultatByExamen(id).catch(() => null),
+        getPaiementsByExamen(id).catch(() => []),
+      ]);
+      if (res || paies.length > 0) {
+        skipped++;
+        continue;
+      }
+      await removeExamen(id);
+      deleted++;
+    }
+    clear();
+    setBulkMsg(
+      `${deleted} examen(s) supprimé(s)` +
+        (skipped ? `, ${skipped} ignoré(s) (résultat/paiement lié)` : ""),
+    );
+  };
 
   const onSubmit = async (data: ExamenInput) => {
     setFormError("");
@@ -216,13 +250,36 @@ export default function ExamensPage() {
         </div>
       </div>
 
+      {/* Résumé suppression multiple */}
+      {bulkMsg && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 text-sm">
+          <span>✅ {bulkMsg}</span>
+          <button
+            onClick={() => setBulkMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div
           className="grid grid-cols-12 px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
-          <div className="col-span-4">Examen</div>
+          <div className="col-span-4 flex items-center gap-3">
+            {estAdmin && (
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                onChange={(e) => setMany(pageIds, e.target.checked)}
+                className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+              />
+            )}
+            Examen
+          </div>
           <div className="col-span-3">Patient</div>
           <div className="col-span-2">Prix</div>
           <div className="col-span-2">Statut</div>
@@ -281,6 +338,15 @@ export default function ExamensPage() {
                   ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
               >
                 <div className="col-span-4 flex items-center gap-3">
+                  {estAdmin && (
+                    <input
+                      type="checkbox"
+                      checked={selected.has(examen.id)}
+                      onChange={() => toggle(examen.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                    />
+                  )}
                   <div
                     className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600
                     flex items-center justify-center text-base flex-shrink-0"
@@ -337,6 +403,15 @@ export default function ExamensPage() {
           to={to}
           total={total}
           onChange={setPage}
+          unitLabel="examens"
+        />
+      )}
+
+      {estAdmin && (
+        <BulkDeleteBar
+          count={selected.size}
+          onClear={clear}
+          onConfirm={handleBulkDelete}
           unitLabel="examens"
         />
       )}

@@ -14,6 +14,8 @@ import { paiementSchema, type PaiementInput } from "@/lib/validations";
 import ExamenPicker from "@/components/ExamenPicker";
 import Pagination from "@/components/Pagination";
 import { usePagination } from "@/hooks/usePagination";
+import { useSelection } from "@/hooks/useSelection";
+import BulkDeleteBar from "@/components/BulkDeleteBar";
 import type { Paiement } from "@/types";
 
 const MODES = ["Espèces", "Mobile Money", "Carte bancaire", "Virement"];
@@ -136,7 +138,21 @@ export default function PaiementsPage() {
   });
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 10, `${search}|${filtre}`);
+    usePagination(filtered, 5, `${search}|${filtre}`);
+
+  // Sélection multiple (admin) pour suppression groupée.
+  const { selected, toggle, setMany, clear } = useSelection();
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const pageIds = pageItems.map((p) => p.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  const handleBulkDelete = async () => {
+    const ids = [...selected];
+    for (const id of ids) await removePaiement(id);
+    clear();
+    setBulkMsg(`${ids.length} paiement(s) supprimé(s)`);
+  };
 
   // Sélection d'un examen → pré-remplit le montant avec son prix.
   const handleExamenSelect = (id: string) => {
@@ -345,13 +361,36 @@ export default function PaiementsPage() {
         </div>
       </div>
 
+      {/* Résumé suppression multiple */}
+      {bulkMsg && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 text-sm">
+          <span>✅ {bulkMsg}</span>
+          <button
+            onClick={() => setBulkMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div
           className="grid grid-cols-12 px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
-          <div className="col-span-3">Patient</div>
+          <div className="col-span-3 flex items-center gap-3">
+            {estAdmin && (
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                onChange={(e) => setMany(pageIds, e.target.checked)}
+                className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+              />
+            )}
+            Patient
+          </div>
           <div className="col-span-3">Examen</div>
           <div className="col-span-2">Montant</div>
           <div className="col-span-2">Statut</div>
@@ -406,14 +445,26 @@ export default function PaiementsPage() {
               className={`grid grid-cols-12 px-5 py-4 items-center
                 ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
             >
-              <div className="col-span-3">
-                <p className="text-sm font-semibold text-slate-900 truncate">
-                  {patientNom(paiement.patientId)}
-                </p>
-                <p className="text-xs text-slate-400">
-                  {paiement.modePaiement ?? "—"}
-                  {paiement.detailPaiement ? ` · ${paiement.detailPaiement}` : ""}
-                </p>
+              <div className="col-span-3 flex items-center gap-3">
+                {estAdmin && (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(paiement.id)}
+                    onChange={() => toggle(paiement.id)}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                  />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {patientNom(paiement.patientId)}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {paiement.modePaiement ?? "—"}
+                    {paiement.detailPaiement
+                      ? ` · ${paiement.detailPaiement}`
+                      : ""}
+                  </p>
+                </div>
               </div>
               <div className="col-span-3">
                 <p className="text-sm text-slate-700 truncate">
@@ -485,6 +536,15 @@ export default function PaiementsPage() {
           to={to}
           total={total}
           onChange={setPage}
+          unitLabel="paiements"
+        />
+      )}
+
+      {estAdmin && (
+        <BulkDeleteBar
+          count={selected.size}
+          onClear={clear}
+          onConfirm={handleBulkDelete}
           unitLabel="paiements"
         />
       )}

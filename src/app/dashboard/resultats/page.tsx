@@ -56,7 +56,7 @@ export default function ResultatsPage() {
   });
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 10, `${search}|${filtre}`);
+    usePagination(filtered, 5, `${search}|${filtre}`);
 
   return (
     <div className="space-y-5">

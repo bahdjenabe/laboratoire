@@ -64,9 +64,11 @@ service cloud.firestore {
       allow read: if isAuth();
       // Création / suppression d'un compte : admin uniquement.
       allow create, delete: if hasRole('admin');
-      // L'admin modifie tout. Un utilisateur peut éditer son propre profil
-      // MAIS PAS son rôle (protection contre l'élévation de privilèges).
-      allow update: if hasRole('admin')
+      // L'admin modifie le compte des AUTRES librement. Toute modification de
+      // son PROPRE compte (admin inclus) interdit de changer le rôle (RG-06,
+      // protection contre l'élévation/auto-modification de privilèges).
+      allow update: if
+        (hasRole('admin') && request.auth.uid != uid)
         || (request.auth.uid == uid
             && request.resource.data.role == resource.data.role);
     }

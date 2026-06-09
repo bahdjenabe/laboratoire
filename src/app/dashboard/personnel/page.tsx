@@ -7,6 +7,8 @@ import { usePersonnel } from "@/hooks/usePersonnel";
 import { useAuth } from "@/context/AuthContext";
 import { usePagination } from "@/hooks/usePagination";
 import Pagination from "@/components/Pagination";
+import { useSelection } from "@/hooks/useSelection";
+import BulkDeleteBar from "@/components/BulkDeleteBar";
 import {
   staffSchema,
   staffEditSchema,
@@ -70,7 +72,23 @@ export default function PersonnelPage() {
   });
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(staff, 10);
+    usePagination(staff, 5);
+
+  // Sélection multiple pour suppression groupée (jamais soi-même).
+  const { selected, toggle, setMany, clear } = useSelection();
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const pageIds = pageItems
+    .filter((m) => m.uid !== user?.uid)
+    .map((m) => m.uid);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  const handleBulkDelete = async () => {
+    const ids = [...selected].filter((uid) => uid !== user?.uid);
+    for (const uid of ids) await removeStaff(uid);
+    clear();
+    setBulkMsg(`${ids.length} membre(s) retiré(s)`);
+  };
 
   // Garde-fou : page réservée aux administrateurs.
   if (user && user.role !== "admin") {
@@ -122,7 +140,12 @@ export default function PersonnelPage() {
     if (!editing) return;
     setFormError("");
     try {
-      await editStaff(editing.uid, data);
+      // RG-06 : personne ne modifie son propre rôle (même un admin).
+      const isSelf = editing.uid === user?.uid;
+      const payload = isSelf
+        ? { ...data, role: editing.role as StaffEditInput["role"] }
+        : data;
+      await editStaff(editing.uid, payload);
       setEditing(null);
     } catch (err) {
       setFormError("Erreur lors de la mise à jour. Réessayez.");
@@ -162,13 +185,34 @@ export default function PersonnelPage() {
         </button>
       </div>
 
+      {/* Résumé suppression multiple */}
+      {bulkMsg && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 text-sm">
+          <span>✅ {bulkMsg}</span>
+          <button
+            onClick={() => setBulkMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div
           className="grid grid-cols-12 px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
-          <div className="col-span-5">Membre</div>
+          <div className="col-span-5 flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              onChange={(e) => setMany(pageIds, e.target.checked)}
+              className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+            />
+            Membre
+          </div>
           <div className="col-span-4">Email</div>
           <div className="col-span-2">Rôle</div>
           <div className="col-span-1 text-right">Actions</div>
@@ -219,6 +263,15 @@ export default function PersonnelPage() {
                   ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
               >
                 <div className="col-span-5 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(membre.uid)}
+                    onChange={() => toggle(membre.uid)}
+                    disabled={isSelf}
+                    title={isSelf ? "Vous ne pouvez pas vous retirer" : undefined}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0
+                      disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
                   <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
                     {`${membre.prenom?.[0] ?? ""}${membre.nom?.[0] ?? ""}`.toUpperCase()}
                   </div>
@@ -286,6 +339,13 @@ export default function PersonnelPage() {
           unitLabel="membres"
         />
       )}
+
+      <BulkDeleteBar
+        count={selected.size}
+        onClear={clear}
+        onConfirm={handleBulkDelete}
+        unitLabel="membres"
+      />
 
       {/* Modal création */}
       {showCreate && (
@@ -463,13 +523,26 @@ export default function PersonnelPage() {
 
               <div className="space-y-1.5">
                 <label className={labelCls}>Rôle *</label>
-                <select {...editForm.register("role")} className={inputCls}>
+                <select
+                  {...editForm.register("role")}
+                  disabled={editing?.uid === user?.uid}
+                  className={`${inputCls} ${
+                    editing?.uid === user?.uid
+                      ? "opacity-70 cursor-not-allowed"
+                      : ""
+                  }`}
+                >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
                       {ROLE_LABELS[r]}
                     </option>
                   ))}
                 </select>
+                {editing?.uid === user?.uid && (
+                  <p className="text-xs text-slate-400">
+                    Vous ne pouvez pas modifier votre propre rôle.
+                  </p>
+                )}
               </div>
 
               {formError && (

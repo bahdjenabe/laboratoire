@@ -7,6 +7,8 @@ import { getExamensByPatient } from "@/lib/firestore/examens";
 import { useAuth } from "@/context/AuthContext";
 import { usePagination } from "@/hooks/usePagination";
 import Pagination from "@/components/Pagination";
+import { useSelection } from "@/hooks/useSelection";
+import BulkDeleteBar from "@/components/BulkDeleteBar";
 import type { Patient } from "@/types";
 
 // Firestore renvoie un Timestamp : on le convertit en Date de façon sûre.
@@ -38,6 +40,8 @@ export default function PatientsPage() {
 
   // Médecin = lecture seule sur les patients.
   const peutGerer = user?.role === "admin" || user?.role === "technicien";
+  // Suppression (simple ou multiple) = admin uniquement (règles Firestore).
+  const estAdmin = user?.role === "admin";
 
   const [search, setSearch] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -57,7 +61,34 @@ export default function PatientsPage() {
   });
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 10, search);
+    usePagination(filtered, 5, search);
+
+  // Sélection multiple (admin) pour suppression groupée.
+  const { selected, toggle, setMany, clear } = useSelection();
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const pageIds = pageItems.map((p) => p.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
+  const handleBulkDelete = async () => {
+    const ids = [...selected];
+    let deleted = 0;
+    let skipped = 0;
+    for (const id of ids) {
+      const examens = await getExamensByPatient(id).catch(() => []);
+      if (examens.length > 0) {
+        skipped++;
+        continue;
+      }
+      await removePatient(id);
+      deleted++;
+    }
+    clear();
+    setBulkMsg(
+      `${deleted} patient(s) supprimé(s)` +
+        (skipped ? `, ${skipped} ignoré(s) (examens liés)` : ""),
+    );
+  };
 
   // Ouvre la confirmation et vérifie si le patient a des examens.
   const askDelete = async (id: string) => {
@@ -133,6 +164,19 @@ export default function PatientsPage() {
         />
       </div>
 
+      {/* Résumé suppression multiple */}
+      {bulkMsg && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 text-sm">
+          <span>✅ {bulkMsg}</span>
+          <button
+            onClick={() => setBulkMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {/* Header table */}
@@ -140,7 +184,17 @@ export default function PatientsPage() {
           className="grid grid-cols-12 px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
-          <div className="col-span-4">Patient</div>
+          <div className="col-span-4 flex items-center gap-3">
+            {estAdmin && (
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                onChange={(e) => setMany(pageIds, e.target.checked)}
+                className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+              />
+            )}
+            Patient
+          </div>
           <div className="col-span-2">Age / Sexe</div>
           <div className="col-span-2">Groupe</div>
           <div className="col-span-2">Telephone</div>
@@ -210,6 +264,15 @@ export default function PatientsPage() {
             >
               {/* Nom + email */}
               <div className="col-span-4 flex items-center gap-3">
+                {estAdmin && (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(patient.id)}
+                    onChange={() => toggle(patient.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                  />
+                )}
                 <div
                   className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700
                   flex items-center justify-center text-sm font-bold flex-shrink-0"
@@ -300,6 +363,15 @@ export default function PatientsPage() {
           to={to}
           total={total}
           onChange={setPage}
+          unitLabel="patients"
+        />
+      )}
+
+      {estAdmin && (
+        <BulkDeleteBar
+          count={selected.size}
+          onClear={clear}
+          onConfirm={handleBulkDelete}
           unitLabel="patients"
         />
       )}
