@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { usePatients } from "@/hooks/usePatients";
 import { getExamensByPatient } from "@/lib/firestore/examens";
 import { useAuth } from "@/context/AuthContext";
+import { usePagination } from "@/hooks/usePagination";
+import Pagination from "@/components/Pagination";
 import type { Patient } from "@/types";
 
 // Firestore renvoie un Timestamp : on le convertit en Date de façon sûre.
@@ -53,6 +55,9 @@ export default function PatientsPage() {
       p.email?.toLowerCase().includes(s)
     );
   });
+
+  const { pageItems, page, totalPages, setPage, from, to, total } =
+    usePagination(filtered, 10, search);
 
   // Ouvre la confirmation et vérifie si le patient a des examens.
   const askDelete = async (id: string) => {
@@ -195,12 +200,12 @@ export default function PatientsPage() {
             )}
           </div>
         ) : (
-          filtered.map((patient, idx) => (
+          pageItems.map((patient, idx) => (
             <div
               key={patient.id}
               className={`grid grid-cols-12 px-5 py-4 items-center
                 hover:bg-slate-50 transition-colors cursor-pointer
-                ${idx < filtered.length - 1 ? "border-b border-slate-50" : ""}`}
+                ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
               onClick={() => router.push(`/dashboard/patients/${patient.id}`)}
             >
               {/* Nom + email */}
@@ -286,6 +291,18 @@ export default function PatientsPage() {
           ))
         )}
       </div>
+
+      {!loading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          from={from}
+          to={to}
+          total={total}
+          onChange={setPage}
+          unitLabel="patients"
+        />
+      )}
 
       {/* Modal confirmation suppression */}
       {showConfirm && (

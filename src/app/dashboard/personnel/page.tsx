@@ -5,6 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePersonnel } from "@/hooks/usePersonnel";
 import { useAuth } from "@/context/AuthContext";
+import { usePagination } from "@/hooks/usePagination";
+import Pagination from "@/components/Pagination";
 import {
   staffSchema,
   staffEditSchema,
@@ -66,6 +68,9 @@ export default function PersonnelPage() {
     resolver: zodResolver(staffEditSchema),
     defaultValues: { prenom: "", nom: "", role: "technicien" },
   });
+
+  const { pageItems, page, totalPages, setPage, from, to, total } =
+    usePagination(staff, 10);
 
   // Garde-fou : page réservée aux administrateurs.
   if (user && user.role !== "admin") {
@@ -205,13 +210,13 @@ export default function PersonnelPage() {
             </button>
           </div>
         ) : (
-          staff.map((membre, idx) => {
+          pageItems.map((membre, idx) => {
             const isSelf = membre.uid === user?.uid;
             return (
               <div
                 key={membre.uid}
                 className={`grid grid-cols-12 px-5 py-4 items-center
-                  ${idx < staff.length - 1 ? "border-b border-slate-50" : ""}`}
+                  ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
               >
                 <div className="col-span-5 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
@@ -269,6 +274,18 @@ export default function PersonnelPage() {
           })
         )}
       </div>
+
+      {!loading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          from={from}
+          to={to}
+          total={total}
+          onChange={setPage}
+          unitLabel="membres"
+        />
+      )}
 
       {/* Modal création */}
       {showCreate && (

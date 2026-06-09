@@ -10,6 +10,8 @@ import { useAuth } from "@/context/AuthContext";
 import { getResultatByExamen } from "@/lib/firestore/resultats";
 import { getPaiementsByExamen } from "@/lib/firestore/paiements";
 import PatientPicker from "@/components/PatientPicker";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { examenSchema, type ExamenInput } from "@/lib/validations";
 import type { StatutExamen } from "@/types";
 
@@ -97,6 +99,9 @@ export default function ExamensPage() {
       patientNom(e.patientId).toLowerCase().includes(s)
     );
   });
+
+  const { pageItems, page, totalPages, setPage, from, to, total } =
+    usePagination(filtered, 10, `${search}|${filtre}`);
 
   const onSubmit = async (data: ExamenInput) => {
     setFormError("");
@@ -265,7 +270,7 @@ export default function ExamensPage() {
             )}
           </div>
         ) : (
-          filtered.map((examen, idx) => {
+          pageItems.map((examen, idx) => {
             const conf = STATUT_CONFIG[examen.statut];
             return (
               <div
@@ -273,7 +278,7 @@ export default function ExamensPage() {
                 onClick={() => router.push(`/dashboard/examens/${examen.id}`)}
                 className={`grid grid-cols-12 px-5 py-4 items-center
                   hover:bg-slate-50 transition-colors cursor-pointer
-                  ${idx < filtered.length - 1 ? "border-b border-slate-50" : ""}`}
+                  ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
               >
                 <div className="col-span-4 flex items-center gap-3">
                   <div
@@ -323,6 +328,18 @@ export default function ExamensPage() {
           })
         )}
       </div>
+
+      {!loading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          from={from}
+          to={to}
+          total={total}
+          onChange={setPage}
+          unitLabel="examens"
+        />
+      )}
 
       {/* Modal création */}
       {showForm && (

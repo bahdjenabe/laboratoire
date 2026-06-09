@@ -77,20 +77,32 @@ export async function validerResultat(
   id: string,
   snapshot: {
     examenNom?: string;
+    patientPrenom?: string;
     patientNom?: string;
+    dateNaissance?: Date;
+    sexe?: 'M' | 'F' | 'Autre';
+    telephone?: string;
+    groupeSanguin?: string;
     valeurs: Record<string, string | number>;
     observations?: string;
   }
 ): Promise<string> {
   const token = generateToken();
 
-  // Snapshot public : uniquement les champs destinés au patient.
+  // Snapshot public : uniquement les champs destinés au patient (sa propre
+  // donnée), aucune référence interne (ni patientId ni examenId).
   await setDoc(doc(db, PUBLIC_COLLECTION, token), {
     examenNom: snapshot.examenNom ?? '',
+    patientPrenom: snapshot.patientPrenom ?? '',
     patientNom: snapshot.patientNom ?? '',
+    dateNaissance: snapshot.dateNaissance ?? null,
+    sexe: snapshot.sexe ?? '',
+    telephone: snapshot.telephone ?? '',
+    groupeSanguin: snapshot.groupeSanguin ?? '',
     valeurs: snapshot.valeurs,
     observations: snapshot.observations ?? '',
     valideAt: serverTimestamp(),
+    ref: id,
   });
 
   await updateDoc(doc(db, COLLECTION, id), {

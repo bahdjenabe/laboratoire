@@ -6,6 +6,8 @@ import { useResultats } from "@/hooks/useResultats";
 import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
+import { usePagination } from "@/hooks/usePagination";
+import Pagination from "@/components/Pagination";
 
 const FILTRES: { key: "tous" | "valide" | "attente"; label: string }[] = [
   { key: "tous", label: "Tous" },
@@ -52,6 +54,9 @@ export default function ResultatsPage() {
       patientNom(r.patientId).toLowerCase().includes(s)
     );
   });
+
+  const { pageItems, page, totalPages, setPage, from, to, total } =
+    usePagination(filtered, 10, `${search}|${filtre}`);
 
   return (
     <div className="space-y-5">
@@ -142,7 +147,7 @@ export default function ResultatsPage() {
             </p>
           </div>
         ) : (
-          filtered.map((resultat, idx) => {
+          pageItems.map((resultat, idx) => {
             const nbValeurs = Object.keys(resultat.valeurs ?? {}).length;
             return (
               <div
@@ -152,7 +157,7 @@ export default function ResultatsPage() {
                 }
                 className={`grid grid-cols-12 px-5 py-4 items-center
                   hover:bg-slate-50 transition-colors cursor-pointer
-                  ${idx < filtered.length - 1 ? "border-b border-slate-50" : ""}`}
+                  ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
               >
                 <div className="col-span-4 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base flex-shrink-0">
@@ -188,6 +193,18 @@ export default function ResultatsPage() {
           })
         )}
       </div>
+
+      {!loading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          from={from}
+          to={to}
+          total={total}
+          onChange={setPage}
+          unitLabel="résultats"
+        />
+      )}
     </div>
   );
 }

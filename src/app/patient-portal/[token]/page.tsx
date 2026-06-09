@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { getPublicResultat } from "@/lib/firestore/resultats";
+import { generatePublicReport } from "@/lib/pdf/generateReport";
 import type { PublicResultat } from "@/types";
 
 function toDate(value: unknown): Date | null {
@@ -115,7 +116,9 @@ export default function PatientPortalPage() {
                   Patient
                 </p>
                 <p className="text-sm font-semibold text-slate-900">
-                  {resultat.patientNom ?? "—"}
+                  {`${resultat.patientPrenom ?? ""} ${
+                    resultat.patientNom ?? ""
+                  }`.trim() || "—"}
                 </p>
               </div>
               <div>
@@ -181,13 +184,20 @@ export default function PatientPortalPage() {
             )}
 
             {/* Actions */}
-            <div className="pt-2 print:hidden">
+            <div className="pt-2 print:hidden flex flex-col sm:flex-row gap-3">
               <button
-                onClick={() => window.print()}
-                className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700
+                onClick={() => generatePublicReport(resultat)}
+                className="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700
                   text-white font-semibold text-sm transition-colors"
               >
-                🖨️ Imprimer / Enregistrer en PDF
+                ⬇️ Télécharger le rapport (PDF)
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="flex-1 h-12 rounded-xl border border-slate-200 hover:bg-slate-50
+                  text-slate-700 font-semibold text-sm transition-colors"
+              >
+                🖨️ Imprimer
               </button>
             </div>
           </div>

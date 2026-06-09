@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import type { Examen, Patient, Resultat } from "@/types";
+import type { Examen, Patient, PublicResultat, Resultat } from "@/types";
 
 function toDate(value: unknown): Date | null {
   if (!value) return null;
@@ -305,4 +305,43 @@ export function generateReport(
   // ── Téléchargement ────────────────────────────────
   const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   doc.save(`resultat-${safe(patient.nom)}-${safe(examen.nomExamen)}.pdf`);
+}
+
+/**
+ * Variante portail patient : génère le même rapport à partir du snapshot
+ * public (`public_resultats`), qui contient désormais la démographie du
+ * patient. Le résultat étant publié, il est forcément validé.
+ */
+export function generatePublicReport(pub: PublicResultat): void {
+  const patient: Patient = {
+    id: "",
+    nom: pub.patientNom ?? "",
+    prenom: pub.patientPrenom ?? "",
+    // age() tolère une date manquante (affiche « — »).
+    dateNaissance: (pub.dateNaissance ?? null) as unknown as Date,
+    sexe: pub.sexe ?? "Autre",
+    telephone: pub.telephone ?? "",
+    groupeSanguin: pub.groupeSanguin,
+    createdAt: new Date(),
+  };
+  const examen: Examen = {
+    id: pub.ref ?? "",
+    patientId: "",
+    nomExamen: pub.examenNom ?? "",
+    statut: "valide",
+    prix: 0,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  const resultat: Resultat = {
+    id: pub.ref ?? "",
+    examenId: "",
+    patientId: "",
+    valeurs: pub.valeurs,
+    observations: pub.observations,
+    valideParMedecin: true,
+    valideAt: pub.valideAt,
+    createdAt: pub.valideAt,
+  };
+  generateReport(examen, patient, resultat);
 }

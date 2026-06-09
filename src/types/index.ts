@@ -63,10 +63,18 @@ export interface Resultat {
 export interface PublicResultat {
   token: string;
   examenNom?: string;
+  patientPrenom?: string;
   patientNom?: string;
+  // Démographie du patient (sa propre donnée) — pour un PDF identique au labo.
+  dateNaissance?: Date;
+  sexe?: 'M' | 'F' | 'Autre';
+  telephone?: string;
+  groupeSanguin?: string;
   valeurs: Record<string, string | number>;
   observations?: string;
   valideAt: Date;
+  // Référence courte affichée sur le rapport (= id du résultat).
+  ref?: string;
 }
 
 export interface Paiement {

@@ -196,7 +196,12 @@ export default function ExamenDetailPage() {
     try {
       await validerResultat(resultat.id, {
         examenNom: examen.nomExamen,
-        patientNom: patient ? `${patient.prenom} ${patient.nom}` : undefined,
+        patientPrenom: patient?.prenom,
+        patientNom: patient?.nom,
+        dateNaissance: patient?.dateNaissance,
+        sexe: patient?.sexe,
+        telephone: patient?.telephone,
+        groupeSanguin: patient?.groupeSanguin,
         valeurs: resultat.valeurs,
         observations: resultat.observations,
       });

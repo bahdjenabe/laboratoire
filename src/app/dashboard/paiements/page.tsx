@@ -12,6 +12,8 @@ import { getExamen } from "@/lib/firestore/examens";
 import { generateRecu } from "@/lib/pdf/generateRecu";
 import { paiementSchema, type PaiementInput } from "@/lib/validations";
 import ExamenPicker from "@/components/ExamenPicker";
+import Pagination from "@/components/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 
 const MODES = ["Espèces", "Mobile Money", "Carte bancaire", "Virement"];
 
@@ -101,6 +103,9 @@ export default function PaiementsPage() {
       examenNom(p.examenId).toLowerCase().includes(s)
     );
   });
+
+  const { pageItems, page, totalPages, setPage, from, to, total } =
+    usePagination(filtered, 10, `${search}|${filtre}`);
 
   // Sélection d'un examen → pré-remplit le montant avec son prix.
   const handleExamenSelect = (id: string) => {
@@ -319,11 +324,11 @@ export default function PaiementsPage() {
             )}
           </div>
         ) : (
-          filtered.map((paiement, idx) => (
+          pageItems.map((paiement, idx) => (
             <div
               key={paiement.id}
               className={`grid grid-cols-12 px-5 py-4 items-center
-                ${idx < filtered.length - 1 ? "border-b border-slate-50" : ""}`}
+                ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
             >
               <div className="col-span-3">
                 <p className="text-sm font-semibold text-slate-900 truncate">
@@ -385,6 +390,18 @@ export default function PaiementsPage() {
           ))
         )}
       </div>
+
+      {!loading && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          from={from}
+          to={to}
+          total={total}
+          onChange={setPage}
+          unitLabel="paiements"
+        />
+      )}
 
       {/* Modal création */}
       {showForm && (
