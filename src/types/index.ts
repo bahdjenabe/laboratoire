@@ -84,5 +84,8 @@ export interface Paiement {
   montant: number;
   statut: 'paye' | 'non_paye';
   modePaiement?: string;
+  // Précision du mode : réseau de carte (Visa…), opérateur mobile (Orange
+  // Money…) ou banque pour un virement. Vide pour les espèces.
+  detailPaiement?: string;
   createdAt: Date;
 }

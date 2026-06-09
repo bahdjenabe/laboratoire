@@ -48,6 +48,7 @@ export const paiementSchema = z.object({
     .number({ message: "Le montant est requis" })
     .min(0, "Le montant doit être positif"),
   modePaiement: z.string().min(1, "Mode de paiement requis"),
+  detailPaiement: z.string().optional(),
   statut: z.enum(["paye", "non_paye"]),
 });
 export type PaiementInput = z.infer<typeof paiementSchema>;

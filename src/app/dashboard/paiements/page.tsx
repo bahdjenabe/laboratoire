@@ -14,8 +14,25 @@ import { paiementSchema, type PaiementInput } from "@/lib/validations";
 import ExamenPicker from "@/components/ExamenPicker";
 import Pagination from "@/components/Pagination";
 import { usePagination } from "@/hooks/usePagination";
+import type { Paiement } from "@/types";
 
 const MODES = ["Espèces", "Mobile Money", "Carte bancaire", "Virement"];
+
+// Détails proposés par mode (réseau de carte, opérateur mobile, banque).
+// Les espèces n'ont pas de détail.
+const MODE_DETAILS: Record<string, string[]> = {
+  "Carte bancaire": ["Visa", "Mastercard", "Autre"],
+  "Mobile Money": ["Orange Money", "MTN MoMo", "Paycard", "Soutra Money", "Autre"],
+  Virement: [
+    "Ecobank",
+    "BICIGUI",
+    "Société Générale (SGBG)",
+    "Orabank",
+    "UBA",
+    "Vista Bank",
+    "Autre",
+  ],
+};
 
 const FILTRES: { key: "tous" | "paye" | "non_paye"; label: string }[] = [
   { key: "tous", label: "Tous" },
@@ -40,6 +57,15 @@ export default function PaiementsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
+  // Édition d'un paiement existant (mode / détail / montant / statut).
+  const [editing, setEditing] = useState<Paiement | null>(null);
+  const [editMode, setEditMode] = useState(MODES[0]);
+  const [editDetail, setEditDetail] = useState("");
+  const [editMontant, setEditMontant] = useState(0);
+  const [editStatut, setEditStatut] = useState<"paye" | "non_paye">("paye");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const editDetailOptions = MODE_DETAILS[editMode] ?? [];
+
   const [formError, setFormError] = useState("");
   const {
     register,
@@ -54,11 +80,14 @@ export default function PaiementsPage() {
       examenId: "",
       montant: 0,
       modePaiement: MODES[0],
+      detailPaiement: "",
       statut: "paye",
     },
   });
   const statut = watch("statut");
   const examenId = watch("examenId");
+  const modePaiement = watch("modePaiement");
+  const detailOptions = MODE_DETAILS[modePaiement] ?? [];
 
   const examensMap = useMemo(
     () => new Map(examens.map((e) => [e.id, e])),
@@ -122,17 +151,23 @@ export default function PaiementsPage() {
       return;
     }
     try {
+      // Détail conservé seulement si le mode en propose (jamais pour espèces).
+      const detail = (MODE_DETAILS[data.modePaiement]?.length
+        ? data.detailPaiement
+        : "") ?? "";
       await addPaiement({
         examenId: ex.id,
         patientId: ex.patientId,
         montant: data.montant,
         statut: data.statut,
         modePaiement: data.modePaiement,
+        detailPaiement: detail,
       });
       reset({
         examenId: "",
         montant: 0,
         modePaiement: MODES[0],
+        detailPaiement: "",
         statut: "paye",
       });
       setShowForm(false);
@@ -175,6 +210,38 @@ export default function PaiementsPage() {
     } finally {
       setDeleting(null);
       setShowConfirm(null);
+    }
+  };
+
+  const openEdit = (paiement: Paiement) => {
+    setEditing(paiement);
+    setEditMode(paiement.modePaiement ?? MODES[0]);
+    setEditDetail(paiement.detailPaiement ?? "");
+    setEditMontant(paiement.montant);
+    setEditStatut(paiement.statut);
+  };
+
+  const changeEditMode = (mode: string) => {
+    setEditMode(mode);
+    // Aligne le détail par défaut sur le nouveau mode.
+    const opts = MODE_DETAILS[mode] ?? [];
+    setEditDetail(opts[0] ?? "");
+  };
+
+  const handleEditSave = async () => {
+    if (!editing) return;
+    setSavingEdit(true);
+    try {
+      const detail = (MODE_DETAILS[editMode]?.length ? editDetail : "") ?? "";
+      await editPaiement(editing.id, {
+        modePaiement: editMode,
+        detailPaiement: detail,
+        montant: editMontant,
+        statut: editStatut,
+      });
+      setEditing(null);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -336,6 +403,7 @@ export default function PaiementsPage() {
                 </p>
                 <p className="text-xs text-slate-400">
                   {paiement.modePaiement ?? "—"}
+                  {paiement.detailPaiement ? ` · ${paiement.detailPaiement}` : ""}
                 </p>
               </div>
               <div className="col-span-3">
@@ -364,6 +432,15 @@ export default function PaiementsPage() {
                 </button>
               </div>
               <div className="col-span-2 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => openEdit(paiement)}
+                  title="Modifier le paiement"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg
+                    bg-slate-100 hover:bg-blue-100 hover:text-blue-600
+                    text-slate-500 transition-colors text-sm"
+                >
+                  ✏️
+                </button>
                 <button
                   onClick={() => handleRecu(paiement.id)}
                   disabled={busy === paiement.id}
@@ -468,7 +545,13 @@ export default function PaiementsPage() {
                     Mode
                   </label>
                   <select
-                    {...register("modePaiement")}
+                    {...register("modePaiement", {
+                      onChange: (e) => {
+                        // Aligne le détail par défaut sur le nouveau mode.
+                        const opts = MODE_DETAILS[e.target.value] ?? [];
+                        setValue("detailPaiement", opts[0] ?? "");
+                      },
+                    })}
                     className="w-full h-11 px-3.5 rounded-xl border border-slate-200
                       bg-slate-50 text-sm text-slate-900
                       focus:outline-none focus:border-emerald-500
@@ -482,6 +565,31 @@ export default function PaiementsPage() {
                   </select>
                 </div>
               </div>
+
+              {detailOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    {modePaiement === "Virement"
+                      ? "Banque"
+                      : modePaiement === "Mobile Money"
+                        ? "Opérateur"
+                        : "Réseau de carte"}
+                  </label>
+                  <select
+                    {...register("detailPaiement")}
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                      bg-slate-50 text-sm text-slate-900
+                      focus:outline-none focus:border-emerald-500
+                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  >
+                    {detailOptions.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -570,6 +678,146 @@ export default function PaiementsPage() {
               >
                 {deleting ? "Suppression..." : "Supprimer"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal édition paiement */}
+      {editing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900">
+                Modifier le paiement
+              </h3>
+              <button
+                onClick={() => setEditing(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg
+                  text-slate-400 hover:bg-slate-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                <p className="text-sm font-semibold text-slate-900">
+                  {patientNom(editing.patientId)}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {examenNom(editing.examenId)}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    Montant (GNF) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editMontant}
+                    onChange={(e) => setEditMontant(Number(e.target.value))}
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                      bg-slate-50 text-sm text-slate-900
+                      focus:outline-none focus:border-emerald-500
+                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    Mode
+                  </label>
+                  <select
+                    value={editMode}
+                    onChange={(e) => changeEditMode(e.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                      bg-slate-50 text-sm text-slate-900
+                      focus:outline-none focus:border-emerald-500
+                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  >
+                    {MODES.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {editDetailOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    {editMode === "Virement"
+                      ? "Banque"
+                      : editMode === "Mobile Money"
+                        ? "Opérateur"
+                        : "Réseau de carte"}
+                  </label>
+                  <select
+                    value={editDetail}
+                    onChange={(e) => setEditDetail(e.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                      bg-slate-50 text-sm text-slate-900
+                      focus:outline-none focus:border-emerald-500
+                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  >
+                    {editDetailOptions.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  Statut
+                </label>
+                <div className="flex gap-2">
+                  {(["paye", "non_paye"] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setEditStatut(st)}
+                      className={`flex-1 h-11 rounded-xl text-sm font-semibold transition-colors border
+                        ${
+                          editStatut === st
+                            ? st === "paye"
+                              ? "bg-emerald-600 text-white border-emerald-600"
+                              : "bg-red-600 text-white border-red-600"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      {st === "paye" ? "Payé" : "Non payé"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(null)}
+                  className="flex-1 h-11 rounded-xl border border-slate-200
+                    text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditSave}
+                  disabled={savingEdit}
+                  className="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700
+                    text-white text-sm font-semibold transition-colors
+                    disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingEdit ? "Enregistrement..." : "Enregistrer"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

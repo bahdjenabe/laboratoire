@@ -230,7 +230,10 @@ export function generateRecu(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(...GRAY);
-  doc.text(`Mode de paiement : ${paiement.modePaiement || "—"}`, marginX, y + 6);
+  const modeLabel = `${paiement.modePaiement || "—"}${
+    paiement.detailPaiement ? ` — ${paiement.detailPaiement}` : ""
+  }`;
+  doc.text(`Mode de paiement : ${modeLabel}`, marginX, y + 6);
 
   const badgeW = 36;
   const badgeX = pageW - marginX - badgeW;
