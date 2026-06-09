@@ -10,8 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const WARNING_BEFORE_MS = 60 * 1000; // avertissement 1 min avant
+const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 heures
+const WARNING_BEFORE_MS = 2 * 60 * 1000; // avertissement 2 min avant
 const COUNTDOWN_START = Math.ceil(WARNING_BEFORE_MS / 1000);
 const ACTIVITY_EVENTS = [
   "mousemove",
@@ -111,7 +111,9 @@ export default function IdleLogout() {
           Vous allez être déconnecté pour inactivité dans
         </p>
         <p className="text-4xl font-extrabold text-emerald-600 mb-6 tabular-nums">
-          {remaining}s
+          {remaining >= 60
+            ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`
+            : `${remaining}s`}
         </p>
         <div className="flex gap-3">
           <button
