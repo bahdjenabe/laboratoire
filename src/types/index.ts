@@ -25,6 +25,9 @@ export interface Patient {
   adresse?: string;
   groupeSanguin?: string;
   antecedents?: string;
+  // Archivage (suppression douce) : le dossier est conservé mais masqué.
+  archive?: boolean;
+  archiveAt?: Date;
   createdAt: Date;
 }
 

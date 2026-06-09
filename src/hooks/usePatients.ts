@@ -4,6 +4,8 @@ import {
   createPatient,
   updatePatient,
   deletePatient,
+  archivePatient,
+  restorePatient,
   assignMissingNumeros,
 } from '@/lib/firestore/patients';
 import type { Patient } from '@/types';
@@ -58,6 +60,17 @@ export function usePatients() {
     await fetchPatients();
   };
 
+  // Suppression douce : archive / restaure un patient.
+  const archive = async (id: string): Promise<void> => {
+    await archivePatient(id);
+    await fetchPatients();
+  };
+
+  const restore = async (id: string): Promise<void> => {
+    await restorePatient(id);
+    await fetchPatients();
+  };
+
   return {
     patients,
     loading,
@@ -66,6 +79,8 @@ export function usePatients() {
     addPatient,
     editPatient,
     removePatient,
+    archive,
+    restore,
     backfillNumeros,
   };
 }

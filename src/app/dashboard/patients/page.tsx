@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePatients } from "@/hooks/usePatients";
-import { getExamensByPatient } from "@/lib/firestore/examens";
 import { useAuth } from "@/context/AuthContext";
 import { usePagination } from "@/hooks/usePagination";
 import Pagination from "@/components/Pagination";
@@ -34,23 +33,28 @@ function getAge(value: unknown): string {
 }
 
 export default function PatientsPage() {
-  const { patients, loading, removePatient, backfillNumeros } = usePatients();
+  const { patients, loading, archive, restore, backfillNumeros } =
+    usePatients();
   const { user } = useAuth();
   const router = useRouter();
 
   // Médecin = lecture seule sur les patients.
   const peutGerer = user?.role === "admin" || user?.role === "technicien";
-  // Suppression (simple ou multiple) = admin uniquement (règles Firestore).
+  // Archivage (simple ou multiple) = admin uniquement.
   const estAdmin = user?.role === "admin";
 
   const [search, setSearch] = useState("");
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [showConfirm, setShowConfirm] = useState<string | null>(null);
-  // Intégrité : un patient ayant des examens ne peut pas être supprimé.
-  const [checkLoading, setCheckLoading] = useState(false);
-  const [blockCount, setBlockCount] = useState<number | null>(null);
+  // Vue : patients actifs (par défaut) ou archivés.
+  const [vue, setVue] = useState<"actifs" | "archives">("actifs");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState<Patient | null>(null);
+
+  const actifsCount = patients.filter((p) => !p.archive).length;
+  const archivesCount = patients.length - actifsCount;
 
   const filtered = patients.filter((p) => {
+    if (vue === "actifs" && p.archive) return false;
+    if (vue === "archives" && !p.archive) return false;
     const s = search.toLowerCase();
     return (
       p.nom.toLowerCase().includes(s) ||
@@ -62,7 +66,7 @@ export default function PatientsPage() {
   });
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 5, search);
+    usePagination(filtered, 5, `${search}|${vue}`);
 
   // Sélection multiple (admin) pour suppression groupée.
   const { selected, toggle, setMany, clear } = useSelection();
@@ -84,54 +88,46 @@ export default function PatientsPage() {
     }
   };
 
-  const handleBulkDelete = async () => {
+  // Action groupée : archive (vue actifs) ou restaure (vue archivés).
+  const handleBulkAction = async () => {
     const ids = [...selected];
-    let deleted = 0;
-    let skipped = 0;
     for (const id of ids) {
-      const examens = await getExamensByPatient(id).catch(() => []);
-      if (examens.length > 0) {
-        skipped++;
-        continue;
-      }
-      await removePatient(id);
-      deleted++;
+      if (vue === "actifs") await archive(id);
+      else await restore(id);
     }
     clear();
     setBulkMsg(
-      `${deleted} patient(s) supprimé(s)` +
-        (skipped ? `, ${skipped} ignoré(s) (examens liés)` : ""),
+      vue === "actifs"
+        ? `${ids.length} patient(s) archivé(s).`
+        : `${ids.length} patient(s) restauré(s).`,
     );
   };
 
-  // Ouvre la confirmation et vérifie si le patient a des examens.
-  const askDelete = async (id: string) => {
-    setShowConfirm(id);
-    setBlockCount(null);
-    setCheckLoading(true);
+  const handleArchive = async (id: string) => {
+    setBusyId(id);
     try {
-      const examens = await getExamensByPatient(id).catch(() => []);
-      setBlockCount(examens.length);
+      await archive(id);
+      setBulkMsg("Patient archivé — restaurable dans la vue « Archivés ».");
     } finally {
-      setCheckLoading(false);
+      setBusyId(null);
+      setConfirmArchive(null);
     }
   };
 
-  const closeConfirm = () => {
-    setShowConfirm(null);
-    setBlockCount(null);
-    setCheckLoading(false);
+  const handleRestore = async (id: string) => {
+    setBusyId(id);
+    try {
+      await restore(id);
+      setBulkMsg("Patient restauré.");
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    if (blockCount && blockCount > 0) return; // garde-fou
-    setDeleting(id);
-    try {
-      await removePatient(id);
-    } finally {
-      setDeleting(null);
-      closeConfirm();
-    }
+  // Changer de vue réinitialise la sélection.
+  const changeVue = (v: "actifs" | "archives") => {
+    setVue(v);
+    clear();
   };
 
   const getInitiales = (p: Patient) =>
@@ -144,8 +140,11 @@ export default function PatientsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Patients</h1>
           <p className="text-sm text-slate-400 mt-0.5">
-            {patients.length} patient{patients.length > 1 ? "s" : ""} enregistré
-            {patients.length > 1 ? "s" : ""}
+            {actifsCount} patient{actifsCount > 1 ? "s" : ""} actif
+            {actifsCount > 1 ? "s" : ""}
+            {archivesCount > 0 && ` • ${archivesCount} archivé${
+              archivesCount > 1 ? "s" : ""
+            }`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -177,21 +176,46 @@ export default function PatientsPage() {
         </div>
       </div>
 
-      {/* Barre de recherche */}
-      <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-          🔍
-        </span>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher par nom, prénom, téléphone..."
-          className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200
-            rounded-xl text-sm text-slate-900 placeholder:text-slate-400
-            focus:outline-none focus:border-emerald-500
-            focus:ring-2 focus:ring-emerald-500/10 transition-all"
-        />
+      {/* Vue + recherche */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex gap-1.5 bg-white border border-slate-200 rounded-xl p-1">
+          {(
+            [
+              { key: "actifs", label: "Actifs" },
+              { key: "archives", label: `Archivés${
+                archivesCount ? ` (${archivesCount})` : ""
+              }` },
+            ] as const
+          ).map((v) => (
+            <button
+              key={v.key}
+              onClick={() => changeVue(v.key)}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors
+                ${
+                  vue === v.key
+                    ? "bg-emerald-600 text-white"
+                    : "text-slate-500 hover:bg-slate-100"
+                }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+            🔍
+          </span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher par numéro, nom, téléphone..."
+            className="w-full h-11 pl-10 pr-4 bg-white border border-slate-200
+              rounded-xl text-sm text-slate-900 placeholder:text-slate-400
+              focus:outline-none focus:border-emerald-500
+              focus:ring-2 focus:ring-emerald-500/10 transition-all"
+          />
+        </div>
       </div>
 
       {/* Résumé suppression multiple */}
@@ -264,16 +288,22 @@ export default function PatientsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-5xl mb-4">👤</span>
+            <span className="text-5xl mb-4">{vue === "archives" ? "🗄️" : "👤"}</span>
             <p className="text-slate-600 font-semibold text-base mb-1">
-              {search ? "Aucun résultat trouvé" : "Aucun patient enregistré"}
+              {search
+                ? "Aucun résultat trouvé"
+                : vue === "archives"
+                  ? "Aucun patient archivé"
+                  : "Aucun patient enregistré"}
             </p>
             <p className="text-slate-400 text-sm mb-5">
               {search
                 ? "Essayez avec d'autres termes de recherche"
-                : "Commencez par ajouter votre premier patient"}
+                : vue === "archives"
+                  ? "Les patients archivés apparaîtront ici"
+                  : "Commencez par ajouter votre premier patient"}
             </p>
-            {!search && peutGerer && (
+            {!search && vue === "actifs" && peutGerer && (
               <button
                 onClick={() => router.push("/dashboard/patients/nouveau")}
                 className="px-4 py-2 bg-emerald-600 text-white text-sm
@@ -373,14 +403,29 @@ export default function PatientsPage() {
                     >
                       ✏️
                     </button>
-                    <button
-                      onClick={() => askDelete(patient.id)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg
-                        bg-slate-100 hover:bg-red-100 hover:text-red-600
-                        text-slate-500 transition-colors text-sm"
-                    >
-                      🗑️
-                    </button>
+                    {estAdmin && vue === "actifs" && (
+                      <button
+                        onClick={() => setConfirmArchive(patient)}
+                        title="Archiver"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg
+                          bg-slate-100 hover:bg-amber-100 hover:text-amber-600
+                          text-slate-500 transition-colors text-sm"
+                      >
+                        📥
+                      </button>
+                    )}
+                    {estAdmin && vue === "archives" && (
+                      <button
+                        onClick={() => handleRestore(patient.id)}
+                        disabled={busyId === patient.id}
+                        title="Restaurer"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg
+                          bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600
+                          text-slate-500 transition-colors text-sm disabled:opacity-50"
+                      >
+                        ♻️
+                      </button>
+                    )}
                   </>
                 ) : (
                   <span className="text-xs text-slate-300">—</span>
@@ -407,75 +452,52 @@ export default function PatientsPage() {
         <BulkDeleteBar
           count={selected.size}
           onClear={clear}
-          onConfirm={handleBulkDelete}
+          onConfirm={handleBulkAction}
           unitLabel="patients"
+          verb={vue === "actifs" ? "Archiver" : "Restaurer"}
+          icon={vue === "actifs" ? "📥" : "♻️"}
+          danger={false}
+          description={
+            vue === "actifs"
+              ? "Les patients archivés sont masqués mais conservés. Vous pourrez les restaurer à tout moment."
+              : "Les patients sélectionnés redeviendront actifs."
+          }
         />
       )}
 
-      {/* Modal confirmation suppression */}
-      {showConfirm && (
+      {/* Modal confirmation archivage */}
+      {confirmArchive && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            {checkLoading ? (
-              <div className="py-6 text-center">
-                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-sm text-slate-500">Vérification...</p>
-              </div>
-            ) : blockCount && blockCount > 0 ? (
-              <>
-                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
-                  ⚠️
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
-                  Suppression impossible
-                </h3>
-                <p className="text-sm text-slate-500 text-center mb-6">
-                  Ce patient a {blockCount} examen{blockCount > 1 ? "s" : ""}{" "}
-                  associé{blockCount > 1 ? "s" : ""}. Supprimez d&apos;abord ses
-                  examens pour pouvoir le supprimer.
-                </p>
-                <button
-                  onClick={closeConfirm}
-                  className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800
-                    text-white text-sm font-semibold transition-colors"
-                >
-                  J&apos;ai compris
-                </button>
-              </>
-            ) : (
-              <>
-                <div
-                  className="w-12 h-12 bg-red-100 rounded-full flex items-center
-                  justify-center text-2xl mx-auto mb-4"
-                >
-                  🗑️
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
-                  Supprimer ce patient ?
-                </h3>
-                <p className="text-sm text-slate-500 text-center mb-6">
-                  Cette action est irréversible.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={closeConfirm}
-                    className="flex-1 h-11 rounded-xl border border-slate-200
-                      text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={() => handleDelete(showConfirm)}
-                    disabled={!!deleting}
-                    className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
-                      text-white text-sm font-semibold transition-colors
-                      disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {deleting ? "Suppression..." : "Supprimer"}
-                  </button>
-                </div>
-              </>
-            )}
+            <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+              📥
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+              Archiver ce patient ?
+            </h3>
+            <p className="text-sm text-slate-500 text-center mb-6">
+              {confirmArchive.prenom} {confirmArchive.nom} sera masqué de la
+              liste, mais son dossier et son historique sont conservés. Vous
+              pourrez le restaurer à tout moment.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmArchive(null)}
+                className="flex-1 h-11 rounded-xl border border-slate-200
+                  text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleArchive(confirmArchive.id)}
+                disabled={busyId === confirmArchive.id}
+                className="flex-1 h-11 rounded-xl bg-amber-600 hover:bg-amber-700
+                  text-white text-sm font-semibold transition-colors
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busyId === confirmArchive.id ? "Archivage..." : "Archiver"}
+              </button>
+            </div>
           </div>
         </div>
       )}

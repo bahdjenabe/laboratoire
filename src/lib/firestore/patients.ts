@@ -109,6 +109,23 @@ export async function deletePatient(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id));
 }
 
+// ── Archiver / restaurer un patient (suppression douce) ──
+export async function archivePatient(id: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTION, id), {
+    archive: true,
+    archiveAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function restorePatient(id: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTION, id), {
+    archive: false,
+    archiveAt: null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 // ── Rechercher des patients ───────────────────────
 export async function searchPatients(search: string): Promise<Patient[]> {
   const all = await getPatients();

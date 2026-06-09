@@ -438,7 +438,7 @@ export default function ExamensPage() {
                 </label>
                 <input type="hidden" {...register("patientId")} />
                 <PatientPicker
-                  patients={patients}
+                  patients={patients.filter((p) => !p.archive)}
                   value={patientId}
                   onChange={(id) =>
                     setValue("patientId", id, { shouldValidate: true })
