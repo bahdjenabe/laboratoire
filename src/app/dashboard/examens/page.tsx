@@ -9,7 +9,7 @@ import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
 import { getResultatByExamen } from "@/lib/firestore/resultats";
 import { getPaiementsByExamen } from "@/lib/firestore/paiements";
-import PatientPicker from "@/components/PatientPicker";
+import PatientNumeroPicker from "@/components/PatientNumeroPicker";
 import Pagination from "@/components/Pagination";
 import { usePagination } from "@/hooks/usePagination";
 import { useSelection } from "@/hooks/useSelection";
@@ -137,6 +137,13 @@ export default function ExamensPage() {
     );
   };
 
+  // Ouvre une création vierge (réinitialise le patient/champs précédents).
+  const openForm = () => {
+    reset({ patientId: "", nomExamen: "", prix: 0 });
+    setFormError("");
+    setShowForm(true);
+  };
+
   const onSubmit = async (data: ExamenInput) => {
     setFormError("");
     try {
@@ -204,7 +211,7 @@ export default function ExamensPage() {
         </div>
         {peutGerer && (
           <button
-            onClick={() => setShowForm(true)}
+            onClick={openForm}
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600
               hover:bg-emerald-700 text-white text-sm font-semibold
               rounded-xl transition-all shadow-lg shadow-emerald-600/20
@@ -318,7 +325,7 @@ export default function ExamensPage() {
             </p>
             {!search && filtre === "tous" && peutGerer && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openForm}
                 className="px-4 py-2 bg-emerald-600 text-white text-sm
                   font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
               >
@@ -434,10 +441,10 @@ export default function ExamensPage() {
             <form onSubmit={handleSubmit(onSubmit)} noValidate className="p-6 space-y-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                  Patient *
+                  Matricule du patient *
                 </label>
                 <input type="hidden" {...register("patientId")} />
-                <PatientPicker
+                <PatientNumeroPicker
                   patients={patients.filter((p) => !p.archive)}
                   value={patientId}
                   onChange={(id) =>
@@ -452,6 +459,14 @@ export default function ExamensPage() {
                 )}
               </div>
 
+              {/* Suite de la procédure : visible une fois le patient trouvé */}
+              {!patientId ? (
+                <p className="text-sm text-slate-400 text-center py-4">
+                  Saisissez le matricule du patient puis lancez la recherche
+                  pour continuer.
+                </p>
+              ) : (
+                <>
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Type d&apos;examen *
@@ -521,6 +536,8 @@ export default function ExamensPage() {
                   {isSubmitting ? "Enregistrement..." : "Créer l'examen"}
                 </button>
               </div>
+                </>
+              )}
             </form>
           </div>
         </div>
