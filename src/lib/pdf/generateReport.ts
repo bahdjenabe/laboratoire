@@ -39,6 +39,47 @@ const LIGHT: [number, number, number] = [248, 250, 252]; // slate-50
 const BORDER: [number, number, number] = [226, 232, 240]; // slate-200
 const AMBER_LIGHT: [number, number, number] = [254, 243, 199];
 const AMBER_DARK: [number, number, number] = [180, 83, 9];
+const INK: [number, number, number] = [30, 58, 138]; // bleu encre signature
+
+/** Dessine un cachet rond « par défaut » du laboratoire. */
+function drawCachet(doc: jsPDF, cx: number, cy: number, r: number): void {
+  doc.setDrawColor(...EMERALD_DARK);
+  doc.setLineWidth(0.8);
+  doc.circle(cx, cy, r, "S");
+  doc.setLineWidth(0.4);
+  doc.circle(cx, cy, r - 2.2, "S");
+  doc.setLineWidth(0.2);
+
+  doc.setTextColor(...EMERALD_DARK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(5);
+  doc.text("LABMÉDICAL", cx, cy - r + 4.2, { align: "center" });
+  doc.text("CONAKRY • GUINÉE", cx, cy + r - 2.6, { align: "center" });
+  doc.setFontSize(11);
+  doc.text("LM", cx, cy + 1.2, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(4.5);
+  doc.text("VALIDÉ", cx, cy + 5.2, { align: "center" });
+}
+
+/** Dessine une signature manuscrite « par défaut » (tracé vectoriel). */
+function drawSignature(doc: jsPDF, x: number, y: number): void {
+  doc.setDrawColor(...INK);
+  doc.setLineWidth(0.6);
+  doc.lines(
+    [
+      [3, -5, 5, 4, 7, -3],
+      [2, 5, 5, -7, 7, 2],
+      [3, 4, 6, -5, 10, 1],
+      [4, 2, 5, -3, 8, 0],
+    ],
+    x,
+    y,
+    [1, 1],
+    "S",
+  );
+  doc.setLineWidth(0.2);
+}
 
 /**
  * Génère et télécharge le rapport PDF d'un résultat d'analyse.
@@ -231,14 +272,22 @@ export function generateReport(
   }
   y += badgeH + 18;
 
-  // ── Zone signature ────────────────────────────────
+  // ── Zone signature + cachet (par défaut) ──────────
+  const sigBaseY = y + 8;
   const sigX = pageW - marginX - 60;
+
+  // Cachet + signature uniquement si le résultat est validé
+  if (resultat.valideParMedecin) {
+    drawCachet(doc, sigX + 4, sigBaseY - 7, 12);
+    drawSignature(doc, sigX + 24, sigBaseY - 6);
+  }
+
   doc.setDrawColor(...GRAY);
-  doc.line(sigX, y, pageW - marginX, y);
+  doc.line(sigX, sigBaseY, pageW - marginX, sigBaseY);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(...GRAY);
-  doc.text("Signature et cachet du médecin", sigX, y + 5);
+  doc.text("Signature et cachet du médecin", sigX, sigBaseY + 5);
 
   // ── Pied de page ──────────────────────────────────
   doc.setDrawColor(...BORDER);

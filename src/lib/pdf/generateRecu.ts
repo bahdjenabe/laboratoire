@@ -23,7 +23,9 @@ function formatDate(value: unknown): string {
 }
 
 const formatGNF = (n: number) =>
-  `${new Intl.NumberFormat("fr-FR").format(n)} GNF`;
+  // Normalise les separateurs de milliers fr-FR (espace fine insecable U+202F)
+  // en espace ASCII, que les polices standard de jsPDF affichent correctement.
+  `${new Intl.NumberFormat("fr-FR").format(n).replace(/\s/g, " ")} GNF`;
 
 // Palette (RGB)
 const EMERALD: [number, number, number] = [5, 150, 105];
@@ -35,6 +37,57 @@ const LIGHT: [number, number, number] = [248, 250, 252];
 const BORDER: [number, number, number] = [226, 232, 240];
 const RED_LIGHT: [number, number, number] = [254, 226, 226];
 const RED_DARK: [number, number, number] = [185, 28, 28];
+const INK: [number, number, number] = [30, 58, 138]; // bleu encre signature
+
+/** Tronque un texte pour qu'il tienne sur une seule ligne de largeur maxW. */
+function fitOneLine(doc: jsPDF, text: string, maxW: number): string {
+  if (doc.getTextWidth(text) <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && doc.getTextWidth(t + "…") > maxW) {
+    t = t.slice(0, -1);
+  }
+  return t.replace(/\s+$/, "") + "…";
+}
+
+/** Dessine un cachet rond « par défaut » du laboratoire. */
+function drawCachet(doc: jsPDF, cx: number, cy: number, r: number): void {
+  doc.setDrawColor(...EMERALD_DARK);
+  doc.setLineWidth(0.8);
+  doc.circle(cx, cy, r, "S");
+  doc.setLineWidth(0.4);
+  doc.circle(cx, cy, r - 2.2, "S");
+  doc.setLineWidth(0.2);
+
+  doc.setTextColor(...EMERALD_DARK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(5);
+  doc.text("LABMÉDICAL", cx, cy - r + 4.2, { align: "center" });
+  doc.text("CONAKRY • GUINÉE", cx, cy + r - 2.6, { align: "center" });
+  doc.setFontSize(11);
+  doc.text("LM", cx, cy + 1.2, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(4.5);
+  doc.text("PAYÉ", cx, cy + 5.2, { align: "center" });
+}
+
+/** Dessine une signature manuscrite « par défaut » (tracé vectoriel). */
+function drawSignature(doc: jsPDF, x: number, y: number): void {
+  doc.setDrawColor(...INK);
+  doc.setLineWidth(0.6);
+  doc.lines(
+    [
+      [3, -5, 5, 4, 7, -3],
+      [2, 5, 5, -7, 7, 2],
+      [3, 4, 6, -5, 10, 1],
+      [4, 2, 5, -3, 8, 0],
+    ],
+    x,
+    y,
+    [1, 1],
+    "S",
+  );
+  doc.setLineWidth(0.2);
+}
 
 /**
  * Génère et télécharge le reçu PDF d'un paiement.
@@ -100,16 +153,24 @@ export function generateRecu(
   doc.setFontSize(8);
   doc.setTextColor(...EMERALD);
   doc.text("REÇU DE", marginX + 5, y + 7);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(...DARK);
-  doc.text(`${patient.prenom} ${patient.nom}`, marginX + 5, y + 15);
+
+  // Téléphone (à droite) — mesuré d'abord pour borner le nom à gauche
+  const telStr = `Tél : ${patient.telephone || "—"}`;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(...GRAY);
-  doc.text(`Tél : ${patient.telephone || "—"}`, pageW - marginX - 5, y + 15, {
-    align: "right",
-  });
+  doc.text(telStr, pageW - marginX - 5, y + 15, { align: "right" });
+  const telW = doc.getTextWidth(telStr);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...DARK);
+  const nameMaxW = contentW - 10 - telW - 6;
+  doc.text(
+    fitOneLine(doc, `${patient.prenom} ${patient.nom}`, nameMaxW),
+    marginX + 5,
+    y + 15,
+  );
   y += cardH + 12;
 
   // ── Tableau détail ────────────────────────────────
@@ -124,19 +185,27 @@ export function generateRecu(
   doc.text("MONTANT", pageW - marginX - 4, y + 6, { align: "right" });
   y += rowH;
 
+  // Montant (à droite) — mesuré d'abord pour borner la désignation à gauche
+  const montantStr = formatGNF(paiement.montant);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...DARK);
+  doc.text(montantStr, pageW - marginX - 4, y + 6, { align: "right" });
+  const montantW = doc.getTextWidth(montantStr);
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(51, 65, 85);
+  const desigMaxW = contentW - 8 - montantW - 6;
   doc.text(
-    examen ? examen.nomExamen : "Prestation de laboratoire",
+    fitOneLine(
+      doc,
+      examen ? examen.nomExamen : "Prestation de laboratoire",
+      desigMaxW,
+    ),
     marginX + 4,
     y + 6,
   );
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...DARK);
-  doc.text(formatGNF(paiement.montant), pageW - marginX - 4, y + 6, {
-    align: "right",
-  });
   y += rowH;
 
   doc.setDrawColor(...BORDER);
@@ -182,14 +251,22 @@ export function generateRecu(
   }
   y += 28;
 
-  // ── Zone signature ────────────────────────────────
+  // ── Zone signature + cachet (par défaut) ──────────
+  const sigBaseY = y + 8;
   const sigX = pageW - marginX - 60;
+
+  // Cachet rond, légèrement à gauche de la signature
+  drawCachet(doc, sigX + 4, sigBaseY - 7, 12);
+
+  // Signature manuscrite au-dessus du trait
+  drawSignature(doc, sigX + 24, sigBaseY - 6);
+
   doc.setDrawColor(...GRAY);
-  doc.line(sigX, y, pageW - marginX, y);
+  doc.line(sigX, sigBaseY, pageW - marginX, sigBaseY);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(...GRAY);
-  doc.text("Signature et cachet", sigX, y + 5);
+  doc.text("Signature et cachet", sigX, sigBaseY + 5);
 
   // ── Pied de page ──────────────────────────────────
   doc.setDrawColor(...BORDER);
