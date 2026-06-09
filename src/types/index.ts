@@ -87,5 +87,8 @@ export interface Paiement {
   // Précision du mode : réseau de carte (Visa…), opérateur mobile (Orange
   // Money…) ou banque pour un virement. Vide pour les espèces.
   detailPaiement?: string;
+  // Référence de la transaction pour le rapprochement comptable : ID Mobile
+  // Money, n° d'autorisation TPE, réf. de virement. JAMAIS de n° de carte/CVV.
+  referencePaiement?: string;
   createdAt: Date;
 }

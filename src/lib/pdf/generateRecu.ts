@@ -234,6 +234,12 @@ export function generateRecu(
     paiement.detailPaiement ? ` — ${paiement.detailPaiement}` : ""
   }`;
   doc.text(`Mode de paiement : ${modeLabel}`, marginX, y + 6);
+  if (paiement.referencePaiement) {
+    doc.setFontSize(9);
+    doc.setTextColor(...GRAY);
+    doc.text(`Réf. transaction : ${paiement.referencePaiement}`, marginX, y + 12);
+    doc.setFontSize(10);
+  }
 
   const badgeW = 36;
   const badgeX = pageW - marginX - badgeW;

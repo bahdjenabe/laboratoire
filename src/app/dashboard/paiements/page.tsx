@@ -61,6 +61,7 @@ export default function PaiementsPage() {
   const [editing, setEditing] = useState<Paiement | null>(null);
   const [editMode, setEditMode] = useState(MODES[0]);
   const [editDetail, setEditDetail] = useState("");
+  const [editReference, setEditReference] = useState("");
   const [editMontant, setEditMontant] = useState(0);
   const [editStatut, setEditStatut] = useState<"paye" | "non_paye">("paye");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -81,6 +82,7 @@ export default function PaiementsPage() {
       montant: 0,
       modePaiement: MODES[0],
       detailPaiement: "",
+      referencePaiement: "",
       statut: "paye",
     },
   });
@@ -151,10 +153,11 @@ export default function PaiementsPage() {
       return;
     }
     try {
-      // Détail conservé seulement si le mode en propose (jamais pour espèces).
-      const detail = (MODE_DETAILS[data.modePaiement]?.length
-        ? data.detailPaiement
-        : "") ?? "";
+      // Détail/référence conservés seulement si le mode en propose un
+      // (jamais pour les espèces).
+      const aDetail = !!MODE_DETAILS[data.modePaiement]?.length;
+      const detail = (aDetail ? data.detailPaiement : "") ?? "";
+      const reference = (aDetail ? data.referencePaiement : "")?.trim() ?? "";
       await addPaiement({
         examenId: ex.id,
         patientId: ex.patientId,
@@ -162,12 +165,14 @@ export default function PaiementsPage() {
         statut: data.statut,
         modePaiement: data.modePaiement,
         detailPaiement: detail,
+        referencePaiement: reference,
       });
       reset({
         examenId: "",
         montant: 0,
         modePaiement: MODES[0],
         detailPaiement: "",
+        referencePaiement: "",
         statut: "paye",
       });
       setShowForm(false);
@@ -217,6 +222,7 @@ export default function PaiementsPage() {
     setEditing(paiement);
     setEditMode(paiement.modePaiement ?? MODES[0]);
     setEditDetail(paiement.detailPaiement ?? "");
+    setEditReference(paiement.referencePaiement ?? "");
     setEditMontant(paiement.montant);
     setEditStatut(paiement.statut);
   };
@@ -232,10 +238,13 @@ export default function PaiementsPage() {
     if (!editing) return;
     setSavingEdit(true);
     try {
-      const detail = (MODE_DETAILS[editMode]?.length ? editDetail : "") ?? "";
+      const aDetail = !!MODE_DETAILS[editMode]?.length;
+      const detail = (aDetail ? editDetail : "") ?? "";
+      const reference = (aDetail ? editReference : "").trim();
       await editPaiement(editing.id, {
         modePaiement: editMode,
         detailPaiement: detail,
+        referencePaiement: reference,
         montant: editMontant,
         statut: editStatut,
       });
@@ -591,6 +600,32 @@ export default function PaiementsPage() {
                 </div>
               )}
 
+              {detailOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    Référence transaction
+                  </label>
+                  <input
+                    {...register("referencePaiement")}
+                    placeholder={
+                      modePaiement === "Mobile Money"
+                        ? "ID transaction (ex: OM240612.1532.A45)"
+                        : modePaiement === "Carte bancaire"
+                          ? "N° d'autorisation du TPE"
+                          : "Référence du virement"
+                    }
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                      bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
+                      focus:outline-none focus:border-emerald-500
+                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  />
+                  <p className="text-xs text-slate-400">
+                    Pour le rapprochement comptable. Ne jamais saisir un numéro
+                    de carte complet ni un code confidentiel.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Statut
@@ -770,6 +805,29 @@ export default function PaiementsPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {editDetailOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                    Référence transaction
+                  </label>
+                  <input
+                    value={editReference}
+                    onChange={(e) => setEditReference(e.target.value)}
+                    placeholder={
+                      editMode === "Mobile Money"
+                        ? "ID transaction (ex: OM240612.1532.A45)"
+                        : editMode === "Carte bancaire"
+                          ? "N° d'autorisation du TPE"
+                          : "Référence du virement"
+                    }
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                      bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
+                      focus:outline-none focus:border-emerald-500
+                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  />
                 </div>
               )}
 
