@@ -31,6 +31,10 @@ const formatNaissance = (value: unknown): string => {
 const initials = (p: Patient) =>
   `${p.prenom?.[0] ?? ""}${p.nom?.[0] ?? ""}`.toUpperCase();
 
+// En dessous de ce seuil, on affiche tous les patients (navigation pratique).
+// Au-dessus, on impose une recherche pour éviter une liste interminable.
+const BROWSE_LIMIT = 8;
+
 interface Props {
   patients: Patient[];
   value: string;
@@ -53,16 +57,21 @@ export default function PatientPicker({
     [patients, value],
   );
 
+  const hasQuery = query.trim().length > 0;
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = q
-      ? patients.filter((p) => {
-          const nom = `${p.prenom} ${p.nom}`.toLowerCase();
-          const tel = (p.telephone ?? "").toLowerCase();
-          return nom.includes(q) || tel.includes(q);
-        })
-      : patients;
-    return base.slice(0, 50); // limiter l'affichage pour rester fluide
+    if (!q) {
+      // Champ vide : on ne déverse la liste que s'il y a peu de patients.
+      return patients.length <= BROWSE_LIMIT ? patients : [];
+    }
+    return patients
+      .filter((p) => {
+        const nom = `${p.prenom} ${p.nom}`.toLowerCase();
+        const tel = (p.telephone ?? "").toLowerCase();
+        return nom.includes(q) || tel.includes(q);
+      })
+      .slice(0, 50); // limiter l'affichage pour rester fluide
   }, [patients, query]);
 
   // Fermeture au clic extérieur
@@ -146,7 +155,9 @@ export default function PatientPicker({
             <p className="px-4 py-4 text-sm text-slate-400 text-center">
               {patients.length === 0
                 ? "Aucun patient enregistré."
-                : "Aucun patient trouvé."}
+                : hasQuery
+                  ? "Aucun patient trouvé."
+                  : `Tapez un nom ou un téléphone pour rechercher (${patients.length} patients).`}
             </p>
           ) : (
             <ul className="divide-y divide-slate-50">

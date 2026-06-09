@@ -10,6 +10,10 @@ import type { Examen } from "@/types";
 const formatGNF = (n: number) =>
   `${new Intl.NumberFormat("fr-FR").format(n)} GNF`;
 
+// En dessous de ce seuil, on affiche tous les examens (navigation pratique).
+// Au-dessus, on impose une recherche pour éviter une liste interminable.
+const BROWSE_LIMIT = 8;
+
 interface Props {
   examens: Examen[];
   patientNom: (patientId: string) => string;
@@ -34,16 +38,21 @@ export default function ExamenPicker({
     [examens, value],
   );
 
+  const hasQuery = query.trim().length > 0;
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const base = q
-      ? examens.filter((e) => {
-          const nom = e.nomExamen.toLowerCase();
-          const pat = patientNom(e.patientId).toLowerCase();
-          return nom.includes(q) || pat.includes(q);
-        })
-      : examens;
-    return base.slice(0, 50);
+    if (!q) {
+      // Champ vide : on ne déverse la liste que s'il y a peu d'examens.
+      return examens.length <= BROWSE_LIMIT ? examens : [];
+    }
+    return examens
+      .filter((e) => {
+        const nom = e.nomExamen.toLowerCase();
+        const pat = patientNom(e.patientId).toLowerCase();
+        return nom.includes(q) || pat.includes(q);
+      })
+      .slice(0, 50);
   }, [examens, query, patientNom]);
 
   useEffect(() => {
@@ -122,7 +131,11 @@ export default function ExamenPicker({
         <div className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-xl">
           {results.length === 0 ? (
             <p className="px-4 py-4 text-sm text-slate-400 text-center">
-              Aucun examen trouvé.
+              {examens.length === 0
+                ? "Aucun examen à facturer."
+                : hasQuery
+                  ? "Aucun examen trouvé."
+                  : `Tapez un examen ou un patient pour rechercher (${examens.length} examens).`}
             </p>
           ) : (
             <ul className="divide-y divide-slate-50">
