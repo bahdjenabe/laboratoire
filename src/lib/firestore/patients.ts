@@ -126,6 +126,34 @@ export async function restorePatient(id: string): Promise<void> {
   });
 }
 
+// ── Unicité téléphone / email ─────────────────────
+// Normalise un téléphone pour la comparaison (chiffres uniquement) afin
+// d'ignorer les espaces et formats (« 620 00 » == « 62000 »).
+export function normalizePhone(value: string | undefined): string {
+  return (value ?? '').replace(/\D/g, '');
+}
+
+// Détecte un doublon de téléphone ou d'email parmi les patients (hors
+// exceptId, pour la modification). Retourne le champ en conflit + le patient.
+export function findPatientDuplicate(
+  patients: Patient[],
+  data: { telephone?: string; email?: string },
+  exceptId?: string
+): { field: 'telephone' | 'email'; patient: Patient } | null {
+  const tel = normalizePhone(data.telephone);
+  const email = (data.email ?? '').trim().toLowerCase();
+  for (const p of patients) {
+    if (p.id === exceptId) continue;
+    if (tel && normalizePhone(p.telephone) === tel) {
+      return { field: 'telephone', patient: p };
+    }
+    if (email && (p.email ?? '').trim().toLowerCase() === email) {
+      return { field: 'email', patient: p };
+    }
+  }
+  return null;
+}
+
 // ── Rechercher des patients ───────────────────────
 export async function searchPatients(search: string): Promise<Patient[]> {
   const all = await getPatients();

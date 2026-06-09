@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { getPatient } from "@/lib/firestore/patients";
+import { getPatient, findPatientDuplicate } from "@/lib/firestore/patients";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
 import { patientSchema, type PatientInput } from "@/lib/validations";
@@ -38,7 +38,7 @@ export default function ModifierPatientPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
-  const { editPatient } = usePatients();
+  const { editPatient, patients } = usePatients();
   const { user } = useAuth();
   const peutGerer = user?.role === "admin" || user?.role === "technicien";
 
@@ -99,6 +99,21 @@ export default function ModifierPatientPage() {
 
   const onSubmit = async (data: PatientInput) => {
     setError("");
+    // Unicité : exclut le patient courant de la comparaison.
+    const dup = findPatientDuplicate(
+      patients,
+      { telephone: data.telephone, email: data.email },
+      id,
+    );
+    if (dup) {
+      const champ =
+        dup.field === "telephone" ? "numéro de téléphone" : "adresse email";
+      const archive = dup.patient.archive
+        ? " (patient archivé — restaurez-le plutôt)"
+        : "";
+      setError(`Un patient avec ce ${champ} existe déjà${archive}.`);
+      return;
+    }
     try {
       await editPatient(id, {
         nom: data.nom,

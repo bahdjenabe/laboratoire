@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePatients } from "@/hooks/usePatients";
+import { findPatientDuplicate } from "@/lib/firestore/patients";
 import { useAuth } from "@/context/AuthContext";
 import { patientSchema, type PatientInput } from "@/lib/validations";
 
@@ -16,7 +17,7 @@ const labelCls =
   "block text-xs font-semibold text-slate-600 uppercase tracking-wide";
 
 export default function NouveauPatientPage() {
-  const { addPatient } = usePatients();
+  const { addPatient, patients } = usePatients();
   const { user } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
@@ -43,6 +44,20 @@ export default function NouveauPatientPage() {
 
   const onSubmit = async (data: PatientInput) => {
     setError("");
+    // Unicité : pas deux patients avec le même téléphone ou le même email.
+    const dup = findPatientDuplicate(patients, {
+      telephone: data.telephone,
+      email: data.email,
+    });
+    if (dup) {
+      const champ =
+        dup.field === "telephone" ? "numéro de téléphone" : "adresse email";
+      const archive = dup.patient.archive
+        ? " (patient archivé — restaurez-le plutôt)"
+        : "";
+      setError(`Un patient avec ce ${champ} existe déjà${archive}.`);
+      return;
+    }
     try {
       await addPatient({
         nom: data.nom,
