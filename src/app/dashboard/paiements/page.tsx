@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePaiements } from "@/hooks/usePaiements";
 import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
@@ -142,6 +142,27 @@ export default function PaiementsPage() {
   );
 
   const selectedCommande = commandesAFacturer.find((c) => c.key === selectedKey);
+
+  // Lien profond depuis la page Examens (?commande=KEY) : ouvre le formulaire
+  // avec la commande déjà sélectionnée pour l'encaisser groupée.
+  const [pendingCommande, setPendingCommande] = useState<string | null>(null);
+  useEffect(() => {
+    const k = new URLSearchParams(window.location.search).get("commande");
+    if (k) setPendingCommande(k);
+  }, []);
+  useEffect(() => {
+    if (!pendingCommande) return;
+    if (commandesAFacturer.some((c) => c.key === pendingCommande)) {
+      setSelectedKey(pendingCommande);
+      setCreateMode(MODES[0]);
+      setCreateDetail("");
+      setCreateReference("");
+      setCreateStatut("paye");
+      setFormError("");
+      setShowForm(true);
+      setPendingCommande(null);
+    }
+  }, [pendingCommande, commandesAFacturer]);
 
   const examenNom = (id: string) =>
     examensMap.get(id)?.nomExamen ?? "Examen supprimé";

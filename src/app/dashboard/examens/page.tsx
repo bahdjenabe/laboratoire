@@ -492,6 +492,25 @@ export default function ExamensPage() {
                 {/* Examens de la commande (dépliés) */}
                 {isOpen && (
                   <div className="bg-slate-50/60">
+                    {/* Action groupée : encaisser toute la commande en attente */}
+                    {peutGerer && cmd.statut === "en_attente" && (
+                      <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-slate-100">
+                        <span className="text-xs text-slate-500">
+                          Total à encaisser : {formatGNF(cmd.total)}
+                        </span>
+                        <button
+                          onClick={() =>
+                            router.push(
+                              `/dashboard/paiements?commande=${encodeURIComponent(cmd.key)}`,
+                            )
+                          }
+                          className="px-3 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                            text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                        >
+                          💳 Encaisser la commande
+                        </button>
+                      </div>
+                    )}
                     {cmd.exams.map((examen) => {
                       const sc = STATUT_CONFIG[examen.statut];
                       return (

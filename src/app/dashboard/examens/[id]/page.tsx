@@ -290,7 +290,11 @@ export default function ExamenDetailPage() {
           </div>
           {(role === "admin" || role === "technicien") && (
             <button
-              onClick={() => router.push("/dashboard/paiements")}
+              onClick={() =>
+                router.push(
+                  `/dashboard/paiements?commande=${encodeURIComponent(examen.commandeId ?? examen.id)}`,
+                )
+              }
               className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700
                 text-white text-sm font-semibold transition-colors whitespace-nowrap flex-shrink-0"
             >
