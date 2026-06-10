@@ -101,6 +101,9 @@ export interface Paiement {
   id: string;
   patientId: string;
   examenId: string;
+  // Regroupe les paiements d'une même commande d'examens (encaissés ensemble).
+  // Absent sur les paiements créés avant cette fonctionnalité.
+  commandeId?: string;
   montant: number;
   statut: 'paye' | 'non_paye';
   modePaiement?: string;

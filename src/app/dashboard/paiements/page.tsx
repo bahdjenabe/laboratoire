@@ -1,22 +1,20 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { usePaiements } from "@/hooks/usePaiements";
 import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
 import { getPatient } from "@/lib/firestore/patients";
-import { getExamen } from "@/lib/firestore/examens";
 import { generateRecu } from "@/lib/pdf/generateRecu";
-import { paiementSchema, type PaiementInput } from "@/lib/validations";
-import ExamenPicker from "@/components/ExamenPicker";
+import CommandePicker, {
+  type CommandeAFacturer,
+} from "@/components/CommandePicker";
 import Pagination from "@/components/Pagination";
 import { usePagination } from "@/hooks/usePagination";
 import { useSelection } from "@/hooks/useSelection";
 import BulkDeleteBar from "@/components/BulkDeleteBar";
-import type { Paiement } from "@/types";
+import type { Examen, Paiement } from "@/types";
 
 const MODES = ["Espèces", "Mobile Money", "Carte bancaire", "Virement"];
 
@@ -45,6 +43,43 @@ const FILTRES: { key: "tous" | "paye" | "non_paye"; label: string }[] = [
 const formatGNF = (n: number) =>
   `${new Intl.NumberFormat("fr-FR").format(n)} GNF`;
 
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "object" && value !== null && "toDate" in value) {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  return null;
+}
+
+const formatDate = (value: unknown): string => {
+  const d = toDate(value);
+  return d
+    ? d.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
+};
+
+// Statut global d'une commande de paiements.
+type StatutCommande = "paye" | "non_paye" | "partiel";
+const STATUT_CMD: Record<StatutCommande, { label: string; cls: string }> = {
+  paye: { label: "✓ Payé", cls: "bg-emerald-100 text-emerald-700" },
+  non_paye: { label: "Non payé", cls: "bg-red-100 text-red-700" },
+  partiel: { label: "Partiel", cls: "bg-amber-100 text-amber-700" },
+};
+
+interface CommandePaiement {
+  key: string;
+  patientId: string;
+  createdAt: unknown;
+  paiements: Paiement[];
+  montantTotal: number;
+  statut: StatutCommande;
+}
+
 export default function PaiementsPage() {
   const { paiements, loading, addPaiement, editPaiement, removePaiement } =
     usePaiements();
@@ -55,43 +90,29 @@ export default function PaiementsPage() {
   const [filtre, setFiltre] = useState<"tous" | "paye" | "non_paye">("tous");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [showConfirm, setShowConfirm] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState<CommandePaiement | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
-  // Édition d'un paiement existant (mode / détail / montant / statut).
-  const [editing, setEditing] = useState<Paiement | null>(null);
+  // Création d'un encaissement (au niveau commande).
+  const [selectedKey, setSelectedKey] = useState("");
+  const [createMode, setCreateMode] = useState(MODES[0]);
+  const [createDetail, setCreateDetail] = useState("");
+  const [createReference, setCreateReference] = useState("");
+  const [createStatut, setCreateStatut] = useState<"paye" | "non_paye">("paye");
+  const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
+  const createDetailOptions = MODE_DETAILS[createMode] ?? [];
+
+  // Édition d'une commande (mode / détail / référence / statut appliqués à
+  // tous ses paiements).
+  const [editing, setEditing] = useState<CommandePaiement | null>(null);
   const [editMode, setEditMode] = useState(MODES[0]);
   const [editDetail, setEditDetail] = useState("");
   const [editReference, setEditReference] = useState("");
-  const [editMontant, setEditMontant] = useState(0);
   const [editStatut, setEditStatut] = useState<"paye" | "non_paye">("paye");
   const [savingEdit, setSavingEdit] = useState(false);
   const editDetailOptions = MODE_DETAILS[editMode] ?? [];
-
-  const [formError, setFormError] = useState("");
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<PaiementInput>({
-    resolver: zodResolver(paiementSchema),
-    defaultValues: {
-      examenId: "",
-      montant: 0,
-      modePaiement: MODES[0],
-      detailPaiement: "",
-      referencePaiement: "",
-      statut: "paye",
-    },
-  });
-  const statut = watch("statut");
-  const examenId = watch("examenId");
-  const modePaiement = watch("modePaiement");
-  const detailOptions = MODE_DETAILS[modePaiement] ?? [];
 
   const examensMap = useMemo(
     () => new Map(examens.map((e) => [e.id, e])),
@@ -107,10 +128,26 @@ export default function PaiementsPage() {
     () => new Set(paiements.map((p) => p.examenId)),
     [paiements],
   );
-  const examensAFacturer = useMemo(
-    () => examens.filter((e) => !examensFactures.has(e.id)),
-    [examens, examensFactures],
-  );
+
+  // Commandes à facturer : examens non encore payés, regroupés par commande.
+  const commandesAFacturer = useMemo<CommandeAFacturer[]>(() => {
+    const aFacturer = examens.filter((e) => !examensFactures.has(e.id));
+    const map = new Map<string, Examen[]>();
+    for (const e of aFacturer) {
+      const key = e.commandeId ?? e.id;
+      const arr = map.get(key);
+      if (arr) arr.push(e);
+      else map.set(key, [e]);
+    }
+    return [...map.entries()].map(([key, exams]) => ({
+      key,
+      patientId: exams[0].patientId,
+      exams,
+      total: exams.reduce((s, e) => s + (e.prix || 0), 0),
+    }));
+  }, [examens, examensFactures]);
+
+  const selectedCommande = commandesAFacturer.find((c) => c.key === selectedKey);
 
   const examenNom = (id: string) =>
     examensMap.get(id)?.nomExamen ?? "Examen supprimé";
@@ -137,15 +174,58 @@ export default function PaiementsPage() {
     );
   });
 
-  const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 5, `${search}|${filtre}`);
+  // Regroupement par commande (paiements encaissés ensemble).
+  const commandes = useMemo<CommandePaiement[]>(() => {
+    const map = new Map<string, Paiement[]>();
+    for (const p of filtered) {
+      const key = p.commandeId ?? p.examenId;
+      const arr = map.get(key);
+      if (arr) arr.push(p);
+      else map.set(key, [p]);
+    }
+    return [...map.entries()].map(([key, paies]) => {
+      const montantTotal = paies.reduce((s, p) => s + (p.montant || 0), 0);
+      const nbPaye = paies.filter((p) => p.statut === "paye").length;
+      const statut: StatutCommande =
+        nbPaye === paies.length
+          ? "paye"
+          : nbPaye === 0
+            ? "non_paye"
+            : "partiel";
+      return {
+        key,
+        patientId: paies[0].patientId,
+        createdAt: paies[0].createdAt,
+        paiements: paies,
+        montantTotal,
+        statut,
+      };
+    });
+    // filtered se reconstruit à chaque rendu : dépend de paiements + filtres.
+  }, [filtered]);
 
-  // Sélection multiple (admin) pour suppression groupée.
+  const { pageItems, page, totalPages, setPage, from, to, total } =
+    usePagination(commandes, 6, `${search}|${filtre}`);
+
+  // Lignes dépliées (clé de commande).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // Sélection multiple (admin) pour suppression groupée — au niveau paiement.
   const { selected, toggle, setMany, clear } = useSelection();
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
-  const pageIds = pageItems.map((p) => p.id);
+  const pagePaiementIds = pageItems.flatMap((c) =>
+    c.paiements.map((p) => p.id),
+  );
   const allPageSelected =
-    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+    pagePaiementIds.length > 0 &&
+    pagePaiementIds.every((id) => selected.has(id));
 
   const handleBulkDelete = async () => {
     const ids = [...selected];
@@ -154,98 +234,117 @@ export default function PaiementsPage() {
     setBulkMsg(`${ids.length} paiement(s) supprimé(s)`);
   };
 
-  // Sélection d'un examen → pré-remplit le montant avec son prix.
-  const handleExamenSelect = (id: string) => {
-    setValue("examenId", id, { shouldValidate: true });
-    const ex = examensMap.get(id);
-    if (ex) setValue("montant", ex.prix);
+  const openForm = () => {
+    setSelectedKey("");
+    setCreateMode(MODES[0]);
+    setCreateDetail("");
+    setCreateReference("");
+    setCreateStatut("paye");
+    setFormError("");
+    setShowForm(true);
   };
 
-  const onSubmit = async (data: PaiementInput) => {
+  // Encaisse tous les examens de la commande : un paiement par examen
+  // (montant = prix du catalogue), partageant le même commandeId.
+  const onCreate = async () => {
     setFormError("");
-    const ex = examensMap.get(data.examenId);
-    if (!ex) {
-      setFormError("Veuillez sélectionner un examen.");
+    if (!selectedCommande) {
+      setFormError("Veuillez sélectionner une commande.");
       return;
     }
+    const aDetail = !!MODE_DETAILS[createMode]?.length;
+    const detail = aDetail ? createDetail : "";
+    const reference = (aDetail ? createReference : "").trim();
+    setCreating(true);
     try {
-      // Détail/référence conservés seulement si le mode en propose un
-      // (jamais pour les espèces).
-      const aDetail = !!MODE_DETAILS[data.modePaiement]?.length;
-      const detail = (aDetail ? data.detailPaiement : "") ?? "";
-      const reference = (aDetail ? data.referencePaiement : "")?.trim() ?? "";
-      await addPaiement({
-        examenId: ex.id,
-        patientId: ex.patientId,
-        montant: data.montant,
-        statut: data.statut,
-        modePaiement: data.modePaiement,
-        detailPaiement: detail,
-        referencePaiement: reference,
-      });
-      reset({
-        examenId: "",
-        montant: 0,
-        modePaiement: MODES[0],
-        detailPaiement: "",
-        referencePaiement: "",
-        statut: "paye",
-      });
+      for (const ex of selectedCommande.exams) {
+        await addPaiement({
+          examenId: ex.id,
+          patientId: ex.patientId,
+          commandeId: ex.commandeId ?? ex.id,
+          montant: ex.prix,
+          statut: createStatut,
+          modePaiement: createMode,
+          detailPaiement: detail,
+          referencePaiement: reference,
+        });
+      }
       setShowForm(false);
     } catch (err) {
       setFormError("Erreur lors de l'enregistrement. Réessayez.");
       console.error(err);
+    } finally {
+      setCreating(false);
     }
   };
 
-  const toggleStatut = async (id: string, statut: "paye" | "non_paye") => {
-    setBusy(id);
+  // Bascule le statut de toute la commande (payé ⇄ non payé).
+  const toggleStatutCommande = async (cmd: CommandePaiement) => {
+    const cible = cmd.statut === "paye" ? "non_paye" : "paye";
+    setBusy(cmd.key);
     try {
-      await editPaiement(id, {
-        statut: statut === "paye" ? "non_paye" : "paye",
+      for (const p of cmd.paiements) {
+        if (p.statut !== cible) await editPaiement(p.id, { statut: cible });
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Bascule le statut d'un seul paiement de la commande.
+  const toggleStatutPaiement = async (p: Paiement) => {
+    setBusy(p.id);
+    try {
+      await editPaiement(p.id, {
+        statut: p.statut === "paye" ? "non_paye" : "paye",
       });
     } finally {
       setBusy(null);
     }
   };
 
-  const handleRecu = async (paiementId: string) => {
-    const paiement = paiements.find((p) => p.id === paiementId);
-    if (!paiement) return;
-    setBusy(paiementId);
+  // Reçu unique pour toute la commande (toutes ses lignes d'examens).
+  const handleRecu = async (cmd: CommandePaiement) => {
+    setBusy(cmd.key);
     try {
-      const [patient, examen] = await Promise.all([
-        getPatient(paiement.patientId),
-        paiement.examenId ? getExamen(paiement.examenId) : Promise.resolve(null),
-      ]);
-      if (patient) generateRecu(paiement, patient, examen);
+      const patient = await getPatient(cmd.patientId);
+      if (!patient) return;
+      const lignes = cmd.paiements.map((p) => ({
+        nom: examenNom(p.examenId),
+        montant: p.montant,
+      }));
+      const meta: Paiement = {
+        ...cmd.paiements[0],
+        statut: cmd.statut === "paye" ? "paye" : "non_paye",
+      };
+      generateRecu(meta, patient, lignes);
     } finally {
       setBusy(null);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    setDeleting(id);
+  const handleDelete = async () => {
+    if (!showConfirm) return;
+    setDeleting(true);
     try {
-      await removePaiement(id);
+      for (const p of showConfirm.paiements) await removePaiement(p.id);
     } finally {
-      setDeleting(null);
+      setDeleting(false);
       setShowConfirm(null);
     }
   };
 
-  const openEdit = (paiement: Paiement) => {
-    setEditing(paiement);
-    setEditMode(paiement.modePaiement ?? MODES[0]);
-    setEditDetail(paiement.detailPaiement ?? "");
-    setEditReference(paiement.referencePaiement ?? "");
-    setEditMontant(paiement.montant);
-    setEditStatut(paiement.statut);
+  const openEdit = (cmd: CommandePaiement) => {
+    const ref = cmd.paiements[0];
+    setEditing(cmd);
+    setEditMode(ref.modePaiement ?? MODES[0]);
+    setEditDetail(ref.detailPaiement ?? "");
+    setEditReference(ref.referencePaiement ?? "");
+    setEditStatut(cmd.statut === "paye" ? "paye" : "non_paye");
   };
 
   const changeEditMode = (mode: string) => {
     setEditMode(mode);
-    // Aligne le détail par défaut sur le nouveau mode.
     const opts = MODE_DETAILS[mode] ?? [];
     setEditDetail(opts[0] ?? "");
   };
@@ -255,15 +354,16 @@ export default function PaiementsPage() {
     setSavingEdit(true);
     try {
       const aDetail = !!MODE_DETAILS[editMode]?.length;
-      const detail = (aDetail ? editDetail : "") ?? "";
+      const detail = aDetail ? editDetail : "";
       const reference = (aDetail ? editReference : "").trim();
-      await editPaiement(editing.id, {
-        modePaiement: editMode,
-        detailPaiement: detail,
-        referencePaiement: reference,
-        montant: editMontant,
-        statut: editStatut,
-      });
+      for (const p of editing.paiements) {
+        await editPaiement(p.id, {
+          modePaiement: editMode,
+          detailPaiement: detail,
+          referencePaiement: reference,
+          statut: editStatut,
+        });
+      }
       setEditing(null);
     } finally {
       setSavingEdit(false);
@@ -294,7 +394,7 @@ export default function PaiementsPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={openForm}
           className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600
             hover:bg-emerald-700 text-white text-sm font-semibold
             rounded-xl transition-all shadow-lg shadow-emerald-600/20
@@ -385,16 +485,17 @@ export default function PaiementsPage() {
               <input
                 type="checkbox"
                 checked={allPageSelected}
-                onChange={(e) => setMany(pageIds, e.target.checked)}
+                onChange={(e) => setMany(pagePaiementIds, e.target.checked)}
                 className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
               />
             )}
             Patient
           </div>
-          <div className="col-span-3">Examen</div>
+          <div className="col-span-3">Examens</div>
+          <div className="col-span-2">Date</div>
           <div className="col-span-2">Montant</div>
-          <div className="col-span-2">Statut</div>
-          <div className="col-span-2 text-right">Actions</div>
+          <div className="col-span-1">Statut</div>
+          <div className="col-span-1 text-right">Actions</div>
         </div>
 
         {loading ? (
@@ -407,9 +508,9 @@ export default function PaiementsPage() {
                 <div className="col-span-3 h-3 w-28 bg-slate-200 rounded animate-pulse" />
                 <div className="col-span-3 h-3 w-32 bg-slate-200 rounded animate-pulse" />
                 <div className="col-span-2 h-3 w-20 bg-slate-200 rounded animate-pulse" />
-                <div className="col-span-2 h-5 w-16 bg-slate-200 rounded-full animate-pulse" />
-                <div className="col-span-2 flex justify-end gap-2">
-                  <div className="w-8 h-8 bg-slate-200 rounded-lg animate-pulse" />
+                <div className="col-span-2 h-3 w-20 bg-slate-200 rounded animate-pulse" />
+                <div className="col-span-1 h-5 w-14 bg-slate-200 rounded-full animate-pulse" />
+                <div className="col-span-1 flex justify-end">
                   <div className="w-8 h-8 bg-slate-200 rounded-lg animate-pulse" />
                 </div>
               </div>
@@ -426,11 +527,11 @@ export default function PaiementsPage() {
             <p className="text-slate-400 text-sm mb-5">
               {search || filtre !== "tous"
                 ? "Essayez d'autres critères"
-                : "Enregistrez le paiement d'un examen"}
+                : "Enregistrez le paiement d'une commande"}
             </p>
             {!search && filtre === "tous" && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={openForm}
                 className="px-4 py-2 bg-emerald-600 text-white text-sm
                   font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
               >
@@ -439,92 +540,171 @@ export default function PaiementsPage() {
             )}
           </div>
         ) : (
-          pageItems.map((paiement, idx) => (
-            <div
-              key={paiement.id}
-              className={`grid grid-cols-12 px-5 py-4 items-center
-                ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
-            >
-              <div className="col-span-3 flex items-center gap-3">
-                {estAdmin && (
-                  <input
-                    type="checkbox"
-                    checked={selected.has(paiement.id)}
-                    onChange={() => toggle(paiement.id)}
-                    className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
-                  />
-                )}
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">
-                    {patientNom(paiement.patientId)}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {paiement.modePaiement ?? "—"}
-                    {paiement.detailPaiement
-                      ? ` · ${paiement.detailPaiement}`
-                      : ""}
-                  </p>
-                </div>
-              </div>
-              <div className="col-span-3">
-                <p className="text-sm text-slate-700 truncate">
-                  {examenNom(paiement.examenId)}
-                </p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-sm font-semibold text-slate-900">
-                  {formatGNF(paiement.montant)}
-                </p>
-              </div>
-              <div className="col-span-2">
-                <button
-                  onClick={() => toggleStatut(paiement.id, paiement.statut)}
-                  disabled={busy === paiement.id}
-                  title="Cliquer pour changer le statut"
-                  className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium transition-colors disabled:opacity-50
-                    ${
-                      paiement.statut === "paye"
-                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                        : "bg-red-100 text-red-700 hover:bg-red-200"
-                    }`}
+          pageItems.map((cmd, idx) => {
+            const conf = STATUT_CMD[cmd.statut];
+            const isOpen = expanded.has(cmd.key);
+            const groupIds = cmd.paiements.map((p) => p.id);
+            const groupSelected =
+              estAdmin && groupIds.every((id) => selected.has(id));
+            const resume = cmd.paiements
+              .map((p) => examenNom(p.examenId))
+              .join(", ");
+            const refPaie = cmd.paiements[0];
+            return (
+              <div
+                key={cmd.key}
+                className={
+                  idx < pageItems.length - 1 ? "border-b border-slate-50" : ""
+                }
+              >
+                {/* Ligne commande */}
+                <div
+                  onClick={() => toggleExpand(cmd.key)}
+                  className="grid grid-cols-12 px-5 py-4 items-center
+                    hover:bg-slate-50 transition-colors cursor-pointer"
                 >
-                  {paiement.statut === "paye" ? "✓ Payé" : "Non payé"}
-                </button>
-              </div>
-              <div className="col-span-2 flex items-center justify-end gap-2">
-                <button
-                  onClick={() => openEdit(paiement)}
-                  title="Modifier le paiement"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg
-                    bg-slate-100 hover:bg-blue-100 hover:text-blue-600
-                    text-slate-500 transition-colors text-sm"
-                >
-                  ✏️
-                </button>
-                <button
-                  onClick={() => handleRecu(paiement.id)}
-                  disabled={busy === paiement.id}
-                  title="Télécharger le reçu"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg
-                    bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600
-                    text-slate-500 transition-colors text-sm disabled:opacity-50"
-                >
-                  🧾
-                </button>
-                {estAdmin && (
-                  <button
-                    onClick={() => setShowConfirm(paiement.id)}
-                    title="Supprimer"
-                    className="w-8 h-8 flex items-center justify-center rounded-lg
-                      bg-slate-100 hover:bg-red-100 hover:text-red-600
-                      text-slate-500 transition-colors text-sm"
+                  <div className="col-span-3 flex items-center gap-3">
+                    {estAdmin && (
+                      <input
+                        type="checkbox"
+                        checked={groupSelected}
+                        onChange={(e) => setMany(groupIds, e.target.checked)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                      />
+                    )}
+                    <span className="text-slate-400 text-xs w-3 flex-shrink-0">
+                      {isOpen ? "▾" : "▸"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">
+                        {patientNom(cmd.patientId)}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {refPaie.modePaiement ?? "—"}
+                        {refPaie.detailPaiement
+                          ? ` · ${refPaie.detailPaiement}`
+                          : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="col-span-3 min-w-0">
+                    <p className="text-sm text-slate-700">
+                      {cmd.paiements.length} examen
+                      {cmd.paiements.length > 1 ? "s" : ""}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">{resume}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm text-slate-700">
+                      {formatDate(cmd.createdAt)}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {formatGNF(cmd.montantTotal)}
+                    </p>
+                  </div>
+                  <div className="col-span-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStatutCommande(cmd);
+                      }}
+                      disabled={busy === cmd.key}
+                      title="Cliquer pour changer le statut de la commande"
+                      className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium transition-colors disabled:opacity-50 ${conf.cls}`}
+                    >
+                      {conf.label}
+                    </button>
+                  </div>
+                  <div
+                    className="col-span-1 flex items-center justify-end gap-1.5"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    🗑️
-                  </button>
+                    <button
+                      onClick={() => openEdit(cmd)}
+                      title="Modifier le paiement"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg
+                        bg-slate-100 hover:bg-blue-100 hover:text-blue-600
+                        text-slate-500 transition-colors text-sm"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleRecu(cmd)}
+                      disabled={busy === cmd.key}
+                      title="Télécharger le reçu"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg
+                        bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600
+                        text-slate-500 transition-colors text-sm disabled:opacity-50"
+                    >
+                      🧾
+                    </button>
+                    {estAdmin && (
+                      <button
+                        onClick={() => setShowConfirm(cmd)}
+                        title="Supprimer"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg
+                          bg-slate-100 hover:bg-red-100 hover:text-red-600
+                          text-slate-500 transition-colors text-sm"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Paiements de la commande (dépliés) */}
+                {isOpen && (
+                  <div className="bg-slate-50/60">
+                    {cmd.paiements.map((p) => (
+                      <div
+                        key={p.id}
+                        className="grid grid-cols-12 px-5 py-3 items-center
+                          border-t border-slate-100"
+                      >
+                        <div className="col-span-6 flex items-center gap-3 pl-7">
+                          {estAdmin && (
+                            <input
+                              type="checkbox"
+                              checked={selected.has(p.id)}
+                              onChange={() => toggle(p.id)}
+                              className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                            />
+                          )}
+                          <p className="text-sm text-slate-700 truncate">
+                            {examenNom(p.examenId)}
+                          </p>
+                        </div>
+                        <div className="col-span-2" />
+                        <div className="col-span-2">
+                          <p className="text-sm text-slate-600">
+                            {formatGNF(p.montant)}
+                          </p>
+                        </div>
+                        <div className="col-span-2 flex justify-end">
+                          <button
+                            onClick={() => toggleStatutPaiement(p)}
+                            disabled={busy === p.id}
+                            title="Changer le statut de cet examen"
+                            className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium transition-colors disabled:opacity-50
+                              ${
+                                p.statut === "paye"
+                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                  : "bg-red-100 text-red-700 hover:bg-red-200"
+                              }`}
+                          >
+                            {p.statut === "paye" ? "✓ Payé" : "Non payé"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -536,7 +716,7 @@ export default function PaiementsPage() {
           to={to}
           total={total}
           onChange={setPage}
-          unitLabel="paiements"
+          unitLabel="commandes"
         />
       )}
 
@@ -566,20 +746,18 @@ export default function PaiementsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} noValidate className="p-6 space-y-4">
+            <div className="p-6 space-y-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                  Examen *
+                  Commande à encaisser *
                 </label>
-                <input type="hidden" {...register("examenId")} />
-                <ExamenPicker
-                  examens={examensAFacturer}
+                <CommandePicker
+                  commandes={commandesAFacturer}
                   patientNom={patientNom}
-                  value={examenId}
-                  onChange={handleExamenSelect}
-                  error={errors.examenId?.message}
+                  value={selectedKey}
+                  onChange={setSelectedKey}
                 />
-                {examensAFacturer.length === 0 && (
+                {commandesAFacturer.length === 0 && (
                   <p className="text-xs text-amber-600">
                     {examens.length === 0
                       ? "Aucun examen. Créez d'abord un examen."
@@ -588,70 +766,75 @@ export default function PaiementsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Montant (GNF) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    {...register("montant", { valueAsNumber: true })}
-                    placeholder="ex: 50000"
-                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                      bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
-                      focus:outline-none focus:border-emerald-500
-                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                  />
-                  {errors.montant && (
-                    <p className="text-xs text-red-600">
-                      {errors.montant.message}
-                    </p>
-                  )}
+              {/* Détail de la commande sélectionnée */}
+              {selectedCommande && (
+                <div className="rounded-xl bg-slate-50 border border-slate-100 divide-y divide-slate-100">
+                  {selectedCommande.exams.map((ex) => (
+                    <div
+                      key={ex.id}
+                      className="flex items-center justify-between px-4 py-2 text-sm"
+                    >
+                      <span className="text-slate-600 truncate">
+                        {ex.nomExamen}
+                      </span>
+                      <span className="text-slate-700 font-medium flex-shrink-0">
+                        {formatGNF(ex.prix)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-sm font-semibold text-slate-900">
+                      Total
+                    </span>
+                    <span className="text-sm font-bold text-emerald-700">
+                      {formatGNF(selectedCommande.total)}
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Mode
-                  </label>
-                  <select
-                    {...register("modePaiement", {
-                      onChange: (e) => {
-                        // Aligne le détail par défaut sur le nouveau mode.
-                        const opts = MODE_DETAILS[e.target.value] ?? [];
-                        setValue("detailPaiement", opts[0] ?? "");
-                      },
-                    })}
-                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                      bg-slate-50 text-sm text-slate-900
-                      focus:outline-none focus:border-emerald-500
-                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                  >
-                    {MODES.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  Mode
+                </label>
+                <select
+                  value={createMode}
+                  onChange={(e) => {
+                    setCreateMode(e.target.value);
+                    const opts = MODE_DETAILS[e.target.value] ?? [];
+                    setCreateDetail(opts[0] ?? "");
+                  }}
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                    bg-slate-50 text-sm text-slate-900
+                    focus:outline-none focus:border-emerald-500
+                    focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                >
+                  {MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {detailOptions.length > 0 && (
+              {createDetailOptions.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    {modePaiement === "Virement"
+                    {createMode === "Virement"
                       ? "Banque"
-                      : modePaiement === "Mobile Money"
+                      : createMode === "Mobile Money"
                         ? "Opérateur"
                         : "Réseau de carte"}
                   </label>
                   <select
-                    {...register("detailPaiement")}
+                    value={createDetail}
+                    onChange={(e) => setCreateDetail(e.target.value)}
                     className="w-full h-11 px-3.5 rounded-xl border border-slate-200
                       bg-slate-50 text-sm text-slate-900
                       focus:outline-none focus:border-emerald-500
                       focus:ring-2 focus:ring-emerald-500/10 transition-all"
                   >
-                    {detailOptions.map((d) => (
+                    {createDetailOptions.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -660,17 +843,18 @@ export default function PaiementsPage() {
                 </div>
               )}
 
-              {detailOptions.length > 0 && (
+              {createDetailOptions.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
                     Référence transaction
                   </label>
                   <input
-                    {...register("referencePaiement")}
+                    value={createReference}
+                    onChange={(e) => setCreateReference(e.target.value)}
                     placeholder={
-                      modePaiement === "Mobile Money"
+                      createMode === "Mobile Money"
                         ? "ID transaction (ex: OM240612.1532.A45)"
-                        : modePaiement === "Carte bancaire"
+                        : createMode === "Carte bancaire"
                           ? "N° d'autorisation du TPE"
                           : "Référence du virement"
                     }
@@ -695,12 +879,10 @@ export default function PaiementsPage() {
                     <button
                       key={st}
                       type="button"
-                      onClick={() =>
-                        setValue("statut", st, { shouldValidate: true })
-                      }
+                      onClick={() => setCreateStatut(st)}
                       className={`flex-1 h-11 rounded-xl text-sm font-semibold transition-colors border
                         ${
-                          statut === st
+                          createStatut === st
                             ? st === "paye"
                               ? "bg-emerald-600 text-white border-emerald-600"
                               : "bg-red-600 text-white border-red-600"
@@ -729,16 +911,17 @@ export default function PaiementsPage() {
                   Annuler
                 </button>
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
+                  type="button"
+                  onClick={onCreate}
+                  disabled={creating || !selectedCommande}
                   className="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700
                     text-white text-sm font-semibold transition-colors
                     disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting ? "Enregistrement..." : "Enregistrer"}
+                  {creating ? "Enregistrement..." : "Enregistrer"}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -754,6 +937,9 @@ export default function PaiementsPage() {
               Supprimer ce paiement ?
             </h3>
             <p className="text-sm text-slate-500 text-center mb-6">
+              {showConfirm.paiements.length > 1
+                ? `Les ${showConfirm.paiements.length} paiements de cette commande seront supprimés. `
+                : ""}
               Cette action est irréversible.
             </p>
             <div className="flex gap-3">
@@ -765,8 +951,8 @@ export default function PaiementsPage() {
                 Annuler
               </button>
               <button
-                onClick={() => handleDelete(showConfirm)}
-                disabled={!!deleting}
+                onClick={handleDelete}
+                disabled={deleting}
                 className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
                   text-white text-sm font-semibold transition-colors
                   disabled:opacity-50 disabled:cursor-not-allowed"
@@ -801,45 +987,30 @@ export default function PaiementsPage() {
                   {patientNom(editing.patientId)}
                 </p>
                 <p className="text-xs text-slate-400">
-                  {examenNom(editing.examenId)}
+                  {editing.paiements.length} examen
+                  {editing.paiements.length > 1 ? "s" : ""} •{" "}
+                  {formatGNF(editing.montantTotal)}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Montant (GNF) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editMontant}
-                    onChange={(e) => setEditMontant(Number(e.target.value))}
-                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                      bg-slate-50 text-sm text-slate-900
-                      focus:outline-none focus:border-emerald-500
-                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Mode
-                  </label>
-                  <select
-                    value={editMode}
-                    onChange={(e) => changeEditMode(e.target.value)}
-                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                      bg-slate-50 text-sm text-slate-900
-                      focus:outline-none focus:border-emerald-500
-                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                  >
-                    {MODES.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  Mode
+                </label>
+                <select
+                  value={editMode}
+                  onChange={(e) => changeEditMode(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200
+                    bg-slate-50 text-sm text-slate-900
+                    focus:outline-none focus:border-emerald-500
+                    focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                >
+                  {MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {editDetailOptions.length > 0 && (
@@ -893,7 +1064,7 @@ export default function PaiementsPage() {
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                  Statut
+                  Statut (toute la commande)
                 </label>
                 <div className="flex gap-2">
                   {(["paye", "non_paye"] as const).map((st) => (

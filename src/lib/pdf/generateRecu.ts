@@ -1,5 +1,11 @@
 import { jsPDF } from "jspdf";
-import type { Examen, Paiement, Patient } from "@/types";
+import type { Paiement, Patient } from "@/types";
+
+// Une ligne du reçu = un examen facturé (nom + montant).
+export interface LigneRecu {
+  nom: string;
+  montant: number;
+}
 
 function toDate(value: unknown): Date | null {
   if (!value) return null;
@@ -90,13 +96,16 @@ function drawSignature(doc: jsPDF, x: number, y: number): void {
 }
 
 /**
- * Génère et télécharge le reçu PDF d'un paiement.
+ * Génère et télécharge le reçu PDF d'un paiement (une ou plusieurs lignes,
+ * pour encaisser tous les examens d'une commande en un seul reçu).
+ * `paiement` fournit les métadonnées (n°, date, mode, statut, référence).
  */
 export function generateRecu(
   paiement: Paiement,
   patient: Patient,
-  examen: Examen | null,
+  lignes: LigneRecu[],
 ): void {
+  const total = lignes.reduce((s, l) => s + (l.montant || 0), 0);
   const doc = new jsPDF();
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -185,28 +194,31 @@ export function generateRecu(
   doc.text("MONTANT", pageW - marginX - 4, y + 6, { align: "right" });
   y += rowH;
 
-  // Montant (à droite) — mesuré d'abord pour borner la désignation à gauche
-  const montantStr = formatGNF(paiement.montant);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...DARK);
-  doc.text(montantStr, pageW - marginX - 4, y + 6, { align: "right" });
-  const montantW = doc.getTextWidth(montantStr);
+  const designations: LigneRecu[] = lignes.length
+    ? lignes
+    : [{ nom: "Prestation de laboratoire", montant: total }];
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(51, 65, 85);
-  const desigMaxW = contentW - 8 - montantW - 6;
-  doc.text(
-    fitOneLine(
-      doc,
-      examen ? examen.nomExamen : "Prestation de laboratoire",
-      desigMaxW,
-    ),
-    marginX + 4,
-    y + 6,
-  );
-  y += rowH;
+  designations.forEach((ligne, i) => {
+    // Bande alternée pour distinguer les examens d'une même commande.
+    if (i % 2 === 1) {
+      doc.setFillColor(...LIGHT);
+      doc.rect(marginX, y, contentW, rowH, "F");
+    }
+    // Montant (à droite) — mesuré d'abord pour borner la désignation.
+    const montantStr = formatGNF(ligne.montant);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...DARK);
+    doc.text(montantStr, pageW - marginX - 4, y + 6, { align: "right" });
+    const montantW = doc.getTextWidth(montantStr);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(51, 65, 85);
+    const desigMaxW = contentW - 8 - montantW - 6;
+    doc.text(fitOneLine(doc, ligne.nom, desigMaxW), marginX + 4, y + 6);
+    y += rowH;
+  });
 
   doc.setDrawColor(...BORDER);
   doc.rect(marginX, tableTop, contentW, y - tableTop);
@@ -221,7 +233,7 @@ export function generateRecu(
   doc.setTextColor(...EMERALD_DARK);
   doc.text("TOTAL", marginX + 5, y + 9);
   doc.setFontSize(14);
-  doc.text(formatGNF(paiement.montant), pageW - marginX - 5, y + 9.5, {
+  doc.text(formatGNF(total), pageW - marginX - 5, y + 9.5, {
     align: "right",
   });
   y += totalH + 14;
