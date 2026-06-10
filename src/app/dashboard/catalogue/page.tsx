@@ -11,6 +11,7 @@ import {
   catalogueExamenSchema,
   type CatalogueExamenInput,
 } from "@/lib/validations";
+import { EXAMENS_DISPONIBLES, TOUS_LES_EXAMENS } from "@/lib/examensDisponibles";
 import type { CatalogueExamen } from "@/types";
 
 const inputCls = `w-full h-11 px-3.5 rounded-xl border border-slate-200
@@ -56,6 +57,14 @@ export default function CataloguePage() {
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
     usePagination(filtered, 8, search);
+
+  // Noms déjà présents au catalogue : on les grise dans la liste déroulante
+  // pour éviter les doublons (sauf l'examen en cours d'édition).
+  const nomsUtilises = new Set(
+    catalogue
+      .filter((c) => c.id !== editing?.id)
+      .map((c) => c.nom.toLowerCase()),
+  );
 
   // Garde-fou : page réservée aux administrateurs.
   if (user && user.role !== "admin") {
@@ -283,12 +292,27 @@ export default function CataloguePage() {
               className="p-6 space-y-4"
             >
               <div className="space-y-1.5">
-                <label className={labelCls}>Nom de l&apos;examen *</label>
-                <input
-                  {...register("nom")}
-                  placeholder="ex: Hémogramme (NFS)"
-                  className={inputCls}
-                />
+                <label className={labelCls}>Examen *</label>
+                <select {...register("nom")} className={inputCls}>
+                  <option value="">— Sélectionnez un examen —</option>
+                  {editing &&
+                    !TOUS_LES_EXAMENS.some(
+                      (n) => n.toLowerCase() === editing.nom.toLowerCase(),
+                    ) && <option value={editing.nom}>{editing.nom}</option>}
+                  {EXAMENS_DISPONIBLES.map((groupe) => (
+                    <optgroup key={groupe.famille} label={groupe.famille}>
+                      {groupe.examens.map((nom) => {
+                        const dejaAjoute = nomsUtilises.has(nom.toLowerCase());
+                        return (
+                          <option key={nom} value={nom} disabled={dejaAjoute}>
+                            {nom}
+                            {dejaAjoute ? " (déjà au catalogue)" : ""}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  ))}
+                </select>
                 {errors.nom && (
                   <p className="text-xs text-red-600">{errors.nom.message}</p>
                 )}
