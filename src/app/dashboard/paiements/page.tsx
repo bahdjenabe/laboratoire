@@ -81,7 +81,7 @@ interface CommandePaiement {
 }
 
 export default function PaiementsPage() {
-  const { paiements, loading, addPaiement, editPaiement, removePaiement } =
+  const { paiements, loading, addPaiements, editPaiement, removePaiement } =
     usePaiements();
   const { examens } = useExamens();
   const { patients } = usePatients();
@@ -257,8 +257,8 @@ export default function PaiementsPage() {
     const reference = (aDetail ? createReference : "").trim();
     setCreating(true);
     try {
-      for (const ex of selectedCommande.exams) {
-        await addPaiement({
+      await addPaiements(
+        selectedCommande.exams.map((ex) => ({
           examenId: ex.id,
           patientId: ex.patientId,
           commandeId: ex.commandeId ?? ex.id,
@@ -267,8 +267,8 @@ export default function PaiementsPage() {
           modePaiement: createMode,
           detailPaiement: detail,
           referencePaiement: reference,
-        });
-      }
+        })),
+      );
       setShowForm(false);
     } catch (err) {
       setFormError("Erreur lors de l'enregistrement. Réessayez.");

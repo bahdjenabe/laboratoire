@@ -56,15 +56,23 @@ function fitOneLine(doc: jsPDF, text: string, maxW: number): string {
 }
 
 /** Dessine un cachet rond « par défaut » du laboratoire. */
-function drawCachet(doc: jsPDF, cx: number, cy: number, r: number): void {
-  doc.setDrawColor(...EMERALD_DARK);
+function drawCachet(
+  doc: jsPDF,
+  cx: number,
+  cy: number,
+  r: number,
+  paye: boolean,
+): void {
+  // Couleur du cachet selon le statut (vert si payé, rouge sinon).
+  const color = paye ? EMERALD_DARK : RED_DARK;
+  doc.setDrawColor(...color);
   doc.setLineWidth(0.8);
   doc.circle(cx, cy, r, "S");
   doc.setLineWidth(0.4);
   doc.circle(cx, cy, r - 2.2, "S");
   doc.setLineWidth(0.2);
 
-  doc.setTextColor(...EMERALD_DARK);
+  doc.setTextColor(...color);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(5);
   doc.text("LABMÉDICAL", cx, cy - r + 4.2, { align: "center" });
@@ -73,7 +81,8 @@ function drawCachet(doc: jsPDF, cx: number, cy: number, r: number): void {
   doc.text("LM", cx, cy + 1.2, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(4.5);
-  doc.text("PAYÉ", cx, cy + 5.2, { align: "center" });
+  // Le tampon ne porte « PAYÉ » que si la commande est réglée.
+  doc.text(paye ? "PAYÉ" : "NON PAYÉ", cx, cy + 5.2, { align: "center" });
 }
 
 /** Dessine une signature manuscrite « par défaut » (tracé vectoriel). */
@@ -288,7 +297,7 @@ export function generateRecu(
   const sigX = pageW - marginX - 60;
 
   // Cachet rond, légèrement à gauche de la signature
-  drawCachet(doc, sigX + 4, sigBaseY - 7, 12);
+  drawCachet(doc, sigX + 4, sigBaseY - 7, 12, paiement.statut === "paye");
 
   // Signature manuscrite au-dessus du trait
   drawSignature(doc, sigX + 24, sigBaseY - 6);

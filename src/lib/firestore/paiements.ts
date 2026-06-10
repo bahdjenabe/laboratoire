@@ -10,6 +10,7 @@ import {
   orderBy,
   where,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Paiement } from '@/types';
@@ -25,6 +26,19 @@ export async function createPaiement(
     createdAt: serverTimestamp(),
   });
   return ref.id;
+}
+
+// ── Créer plusieurs paiements en une écriture atomique ─
+// Encaissement d'une commande : un paiement par examen, tout ou rien.
+export async function createPaiements(
+  items: Omit<Paiement, 'id' | 'createdAt'>[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  for (const data of items) {
+    const ref = doc(collection(db, COLLECTION));
+    batch.set(ref, { ...data, createdAt: serverTimestamp() });
+  }
+  await batch.commit();
 }
 
 // ── Récupérer tous les paiements ──────────────────

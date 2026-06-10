@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getExamens,
   createExamen,
+  createExamens,
   updateExamen,
   updateStatutExamen,
   deleteExamen,
@@ -37,6 +38,14 @@ export function useExamens() {
     await fetchExamens();
   };
 
+  // Création groupée atomique (une commande de plusieurs examens).
+  const addExamens = async (
+    items: Omit<Examen, 'id' | 'createdAt' | 'updatedAt'>[]
+  ): Promise<void> => {
+    await createExamens(items);
+    await fetchExamens();
+  };
+
   const editExamen = async (
     id: string,
     data: Partial<Omit<Examen, 'id' | 'createdAt'>>
@@ -64,6 +73,7 @@ export function useExamens() {
     error,
     fetchExamens,
     addExamen,
+    addExamens,
     editExamen,
     changeStatut,
     removeExamen,

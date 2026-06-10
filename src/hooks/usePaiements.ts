@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getPaiements,
   createPaiement,
+  createPaiements,
   updatePaiement,
   deletePaiement,
 } from '@/lib/firestore/paiements';
@@ -36,6 +37,14 @@ export function usePaiements() {
     await fetchPaiements();
   };
 
+  // Encaissement groupé atomique (tous les examens d'une commande).
+  const addPaiements = async (
+    items: Omit<Paiement, 'id' | 'createdAt'>[]
+  ): Promise<void> => {
+    await createPaiements(items);
+    await fetchPaiements();
+  };
+
   const editPaiement = async (
     id: string,
     data: Partial<Omit<Paiement, 'id' | 'createdAt'>>
@@ -55,6 +64,7 @@ export function usePaiements() {
     error,
     fetchPaiements,
     addPaiement,
+    addPaiements,
     editPaiement,
     removePaiement,
   };

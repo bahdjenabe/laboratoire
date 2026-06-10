@@ -65,7 +65,7 @@ const STATUT_ORDRE: StatutExamen[] = [
 ];
 
 export default function ExamensPage() {
-  const { examens, loading, addExamen, removeExamen } = useExamens();
+  const { examens, loading, addExamens, removeExamen } = useExamens();
   const { patients } = usePatients();
   const { catalogue, loading: catalogueLoading } = useCatalogue();
   const { user } = useAuth();
@@ -231,16 +231,16 @@ export default function ExamensPage() {
     // commande : ils s'afficheront groupés sur une seule ligne du tableau.
     const commandeId = crypto.randomUUID();
     try {
-      for (const cat of choisis) {
-        await addExamen({
+      await addExamens(
+        choisis.map((cat) => ({
           patientId: data.patientId,
           nomExamen: cat.nom,
           prix: cat.prix,
           commandeId,
-          statut: "en_attente",
+          statut: "en_attente" as const,
           technicienId: user?.uid,
-        });
-      }
+        })),
+      );
       reset({ patientId: "", catalogueIds: [] });
       setCatSearch("");
       setShowForm(false);

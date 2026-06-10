@@ -10,6 +10,7 @@ import {
   orderBy,
   where,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Examen, StatutExamen } from '@/types';
@@ -26,6 +27,24 @@ export async function createExamen(
     updatedAt: serverTimestamp(),
   });
   return ref.id;
+}
+
+// ── Créer plusieurs examens en une écriture atomique ─
+// Tous les examens d'une commande sont créés ensemble : soit tout réussit,
+// soit rien (pas de commande partielle).
+export async function createExamens(
+  items: Omit<Examen, 'id' | 'createdAt' | 'updatedAt'>[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  for (const data of items) {
+    const ref = doc(collection(db, COLLECTION));
+    batch.set(ref, {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  await batch.commit();
 }
 
 // ── Récupérer tous les examens ────────────────────
