@@ -10,9 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-// ⚠️ TEST TEMPORAIRE : remettre 2 * 60 * 60 * 1000 (2 h) après vérification.
-const IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes (TEST)
-const WARNING_BEFORE_MS = 60 * 1000; // avertissement 1 min avant (TEST)
+const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 heures
+const WARNING_BEFORE_MS = 2 * 60 * 1000; // avertissement 2 min avant
 const COUNTDOWN_START = Math.ceil(WARNING_BEFORE_MS / 1000);
 const ACTIVITY_EVENTS = [
   "mousemove",
@@ -60,12 +59,10 @@ export default function IdleLogout() {
     };
 
     const startWarning = () => {
-      console.debug("[IdleLogout] ⚠️ avertissement affiché");
       warningActive.current = true;
       setRemaining(COUNTDOWN_START);
       setShowWarning(true);
       logoutTimer.current = setTimeout(() => {
-        console.debug("[IdleLogout] 🔴 déconnexion déclenchée");
         void doLogoutRef.current();
       }, WARNING_BEFORE_MS);
       countdown.current = setInterval(() => {
@@ -84,18 +81,14 @@ export default function IdleLogout() {
     };
     resetRef.current = reset;
 
-    const onActivity = (ev: Event) => {
+    const onActivity = () => {
       if (warningActive.current) return; // choix explicite requis pendant l'alerte
       const now = Date.now();
       if (now - lastReset.current < 1000) return; // throttle
       lastReset.current = now;
-      console.debug(`[IdleLogout] ↻ minuteur réarmé par « ${ev.type} »`);
       reset();
     };
 
-    console.debug(
-      `[IdleLogout] ✅ surveillance active — avertissement dans ${(IDLE_TIMEOUT_MS - WARNING_BEFORE_MS) / 1000}s d'inactivité`,
-    );
     reset();
     ACTIVITY_EVENTS.forEach((e) =>
       window.addEventListener(e, onActivity, { passive: true }),
