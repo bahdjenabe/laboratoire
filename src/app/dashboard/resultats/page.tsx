@@ -12,6 +12,7 @@ import { updateStatutExamen } from "@/lib/firestore/examens";
 import { logError } from "@/lib/logError";
 import Pagination from "@/components/Pagination";
 import PatientNotify from "@/components/PatientNotify";
+import CommandeNotify from "@/components/CommandeNotify";
 import type { Resultat } from "@/types";
 
 const FILTRES: { key: "tous" | "valide" | "attente"; label: string }[] = [
@@ -60,6 +61,9 @@ export default function ResultatsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmCmd, setConfirmCmd] = useState<CommandeResultat | null>(null);
   const [shareResultat, setShareResultat] = useState<Resultat | null>(null);
+  const [shareCommande, setShareCommande] = useState<CommandeResultat | null>(
+    null,
+  );
 
   const peutValider = user?.role === "medecin" || user?.role === "admin";
 
@@ -299,7 +303,7 @@ export default function ResultatsPage() {
                     </span>
                   </div>
                   <div
-                    className="col-span-2 flex justify-end"
+                    className="col-span-2 flex justify-end items-center gap-2"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {peutValider && cmd.nbAValider > 0 && (
@@ -313,6 +317,17 @@ export default function ResultatsPage() {
                         {busy === cmd.key
                           ? "Validation..."
                           : `✔ Valider (${cmd.nbAValider})`}
+                      </button>
+                    )}
+                    {cmd.resultats.some((r) => r.valideParMedecin && r.token) && (
+                      <button
+                        onClick={() => setShareCommande(cmd)}
+                        title="Partager les résultats au patient"
+                        aria-label="Partager les résultats de la commande"
+                        className="px-3 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                          text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                      >
+                        📤 Partager
                       </button>
                     )}
                   </div>
@@ -468,6 +483,43 @@ export default function ResultatsPage() {
                   lien={lien}
                 />
               );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Partage groupé : tous les résultats validés de la commande */}
+      {shareCommande && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-lg">
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => setShareCommande(null)}
+                aria-label="Fermer"
+                className="w-9 h-9 flex items-center justify-center rounded-xl
+                  bg-white text-slate-500 hover:bg-slate-100 transition-colors shadow"
+              >
+                ✕
+              </button>
+            </div>
+            {(() => {
+              const patient = patientsMap.get(shareCommande.patientId);
+              if (!patient) {
+                return (
+                  <div className="bg-white rounded-2xl p-6 text-center text-sm text-slate-500">
+                    Patient introuvable.
+                  </div>
+                );
+              }
+              const origin =
+                typeof window !== "undefined" ? window.location.origin : "";
+              const items = shareCommande.resultats
+                .filter((r) => r.valideParMedecin && r.token)
+                .map((r) => ({
+                  examenNom: examenNom(r.examenId),
+                  lien: `${origin}/patient-portal/${r.token}`,
+                }));
+              return <CommandeNotify patient={patient} resultats={items} />;
             })()}
           </div>
         </div>

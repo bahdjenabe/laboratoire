@@ -28,6 +28,20 @@ export function buildMessage(
   );
 }
 
+// Message groupé : tous les résultats validés d'une commande en un envoi.
+export function buildMessageGroupe(
+  prenom: string,
+  resultats: { examenNom: string; lien: string }[],
+): string {
+  const lignes = resultats
+    .map((r) => `• ${r.examenNom} : ${r.lien}`)
+    .join("\n");
+  return (
+    `Bonjour ${prenom}, vos résultats d'analyse sont disponibles. ` +
+    `Consultez-les en ligne en toute sécurité :\n${lignes}`
+  );
+}
+
 export function whatsappUrl(tel: string, message: string): string {
   return `https://wa.me/${sanitizePhone(tel)}?text=${encodeURIComponent(message)}`;
 }
