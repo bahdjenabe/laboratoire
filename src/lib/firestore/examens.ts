@@ -11,6 +11,7 @@ import {
   where,
   serverTimestamp,
   writeBatch,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Examen, StatutExamen } from '@/types';
@@ -52,6 +53,23 @@ export async function getExamens(): Promise<Examen[]> {
   const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Examen[];
+}
+
+// ── S'abonner aux examens en temps réel ───────────
+// Renvoie une fonction de désabonnement. Met à jour l'UI à chaque changement
+// (y compris ceux d'un autre utilisateur) sans re-télécharger toute la
+// collection à chaque mutation locale.
+export function subscribeExamens(
+  onData: (examens: Examen[]) => void,
+  onError?: (e: unknown) => void
+): () => void {
+  const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Examen[]),
+    onError
+  );
 }
 
 // ── Récupérer un examen par ID ────────────────────

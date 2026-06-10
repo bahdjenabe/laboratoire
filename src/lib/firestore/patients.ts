@@ -8,10 +8,10 @@ import {
   getDocs,
   query,
   orderBy,
-  where,
   serverTimestamp,
   runTransaction,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Patient } from '@/types';
@@ -82,6 +82,20 @@ export async function getPatients(): Promise<Patient[]> {
     id: doc.id,
     ...doc.data(),
   })) as Patient[];
+}
+
+// ── S'abonner aux patients en temps réel ──────────
+export function subscribePatients(
+  onData: (patients: Patient[]) => void,
+  onError?: (e: unknown) => void
+): () => void {
+  const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Patient[]),
+    onError
+  );
 }
 
 // ── Récupérer un patient par ID ───────────────────

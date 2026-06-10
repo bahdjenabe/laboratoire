@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  getResultats,
+  subscribeResultats,
   createResultat,
   updateResultat,
   validerResultat,
@@ -13,29 +13,25 @@ export function useResultats() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchResultats = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await getResultats();
-      setResultats(data);
-    } catch (err) {
-      setError('Erreur lors du chargement des résultats');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchResultats();
-  }, [fetchResultats]);
+    const unsub = subscribeResultats(
+      (data) => {
+        setResultats(data);
+        setLoading(false);
+      },
+      (err) => {
+        setError('Erreur lors du chargement des résultats');
+        setLoading(false);
+        console.error(err);
+      },
+    );
+    return () => unsub();
+  }, []);
 
   const addResultat = async (
     data: Omit<Resultat, 'id' | 'createdAt'>
   ): Promise<string> => {
-    const id = await createResultat(data);
-    await fetchResultats();
-    return id;
+    return createResultat(data);
   };
 
   const editResultat = async (
@@ -43,30 +39,25 @@ export function useResultats() {
     data: Partial<Omit<Resultat, 'id' | 'createdAt'>>
   ): Promise<void> => {
     await updateResultat(id, data);
-    await fetchResultats();
   };
 
   const valider = async (resultat: Resultat): Promise<string> => {
-    const token = await validerResultat(resultat.id, {
+    return validerResultat(resultat.id, {
       examenNom: resultat.examenNom,
       patientNom: resultat.patientNom,
       valeurs: resultat.valeurs,
       observations: resultat.observations,
     });
-    await fetchResultats();
-    return token;
   };
 
   const removeResultat = async (id: string): Promise<void> => {
     await deleteResultat(id);
-    await fetchResultats();
   };
 
   return {
     resultats,
     loading,
     error,
-    fetchResultats,
     addResultat,
     editResultat,
     valider,

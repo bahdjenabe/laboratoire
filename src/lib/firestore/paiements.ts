@@ -11,6 +11,7 @@ import {
   where,
   serverTimestamp,
   writeBatch,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Paiement } from '@/types';
@@ -46,6 +47,20 @@ export async function getPaiements(): Promise<Paiement[]> {
   const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Paiement[];
+}
+
+// ── S'abonner aux paiements en temps réel ─────────
+export function subscribePaiements(
+  onData: (paiements: Paiement[]) => void,
+  onError?: (e: unknown) => void
+): () => void {
+  const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Paiement[]),
+    onError
+  );
 }
 
 // ── Récupérer un paiement par ID ──────────────────

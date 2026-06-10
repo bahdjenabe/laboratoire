@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  getExamens,
+  subscribeExamens,
   createExamen,
   createExamens,
   updateExamen,
@@ -14,28 +14,27 @@ export function useExamens() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchExamens = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await getExamens();
-      setExamens(data);
-    } catch (err) {
-      setError('Erreur lors du chargement des examens');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Abonnement temps réel : l'UI reflète tout changement (y compris d'un autre
+  // poste) sans re-télécharger la collection après chaque mutation.
   useEffect(() => {
-    fetchExamens();
-  }, [fetchExamens]);
+    const unsub = subscribeExamens(
+      (data) => {
+        setExamens(data);
+        setLoading(false);
+      },
+      (err) => {
+        setError('Erreur lors du chargement des examens');
+        setLoading(false);
+        console.error(err);
+      },
+    );
+    return () => unsub();
+  }, []);
 
   const addExamen = async (
     data: Omit<Examen, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<void> => {
     await createExamen(data);
-    await fetchExamens();
   };
 
   // Création groupée atomique (une commande de plusieurs examens).
@@ -43,7 +42,6 @@ export function useExamens() {
     items: Omit<Examen, 'id' | 'createdAt' | 'updatedAt'>[]
   ): Promise<void> => {
     await createExamens(items);
-    await fetchExamens();
   };
 
   const editExamen = async (
@@ -51,7 +49,6 @@ export function useExamens() {
     data: Partial<Omit<Examen, 'id' | 'createdAt'>>
   ): Promise<void> => {
     await updateExamen(id, data);
-    await fetchExamens();
   };
 
   const changeStatut = async (
@@ -59,19 +56,16 @@ export function useExamens() {
     statut: StatutExamen
   ): Promise<void> => {
     await updateStatutExamen(id, statut);
-    await fetchExamens();
   };
 
   const removeExamen = async (id: string): Promise<void> => {
     await deleteExamen(id);
-    await fetchExamens();
   };
 
   return {
     examens,
     loading,
     error,
-    fetchExamens,
     addExamen,
     addExamens,
     editExamen,

@@ -5,6 +5,7 @@ import {
   getDocs,
   updateDoc,
   deleteDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { User, Role } from "@/types";
@@ -32,6 +33,25 @@ export async function getStaff(): Promise<User[]> {
     .map((d) => ({ uid: d.id, ...d.data() }) as User)
     .filter((u) => STAFF_ROLES.includes(u.role))
     .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+}
+
+// ── S'abonner au personnel en temps réel ──────────
+// Même logique de filtrage/tri que getStaff (tri client, pas d'orderBy).
+export function subscribeStaff(
+  onData: (staff: User[]) => void,
+  onError?: (e: unknown) => void,
+): () => void {
+  return onSnapshot(
+    collection(db, COLLECTION),
+    (snap) =>
+      onData(
+        snap.docs
+          .map((d) => ({ uid: d.id, ...d.data() }) as User)
+          .filter((u) => STAFF_ROLES.includes(u.role))
+          .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt)),
+      ),
+    onError,
+  );
 }
 
 // ── Récupérer un utilisateur ──────────────────────

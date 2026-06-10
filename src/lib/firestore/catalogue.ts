@@ -8,6 +8,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { CatalogueExamen } from '@/types';
@@ -19,6 +20,22 @@ export async function getCatalogue(): Promise<CatalogueExamen[]> {
   const q = query(collection(db, COLLECTION), orderBy('nom', 'asc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as CatalogueExamen[];
+}
+
+// ── S'abonner au catalogue en temps réel ──────────
+export function subscribeCatalogue(
+  onData: (catalogue: CatalogueExamen[]) => void,
+  onError?: (e: unknown) => void
+): () => void {
+  const q = query(collection(db, COLLECTION), orderBy('nom', 'asc'));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onData(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() })) as CatalogueExamen[]
+      ),
+    onError
+  );
 }
 
 // ── Ajouter un examen au catalogue ────────────────

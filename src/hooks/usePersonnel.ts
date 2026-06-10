@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { getStaff, updateUser, deleteUser } from "@/lib/firestore/users";
+import { useState, useEffect } from "react";
+import { subscribeStaff, updateUser, deleteUser } from "@/lib/firestore/users";
 import { createStaff } from "@/lib/auth/createStaff";
 import type { Role, User } from "@/types";
 
@@ -16,26 +16,23 @@ export function usePersonnel() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchStaff = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await getStaff();
-      setStaff(data);
-    } catch (err) {
-      setError("Erreur lors du chargement du personnel");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchStaff();
-  }, [fetchStaff]);
+    const unsub = subscribeStaff(
+      (data) => {
+        setStaff(data);
+        setLoading(false);
+      },
+      (err) => {
+        setError("Erreur lors du chargement du personnel");
+        setLoading(false);
+        console.error(err);
+      },
+    );
+    return () => unsub();
+  }, []);
 
   const addStaff = async (data: NewStaff): Promise<void> => {
     await createStaff(data);
-    await fetchStaff();
   };
 
   const editStaff = async (
@@ -43,19 +40,16 @@ export function usePersonnel() {
     data: Partial<Pick<User, "nom" | "prenom" | "role">>,
   ): Promise<void> => {
     await updateUser(uid, data);
-    await fetchStaff();
   };
 
   const removeStaff = async (uid: string): Promise<void> => {
     await deleteUser(uid);
-    await fetchStaff();
   };
 
   return {
     staff,
     loading,
     error,
-    fetchStaff,
     addStaff,
     editStaff,
     removeStaff,

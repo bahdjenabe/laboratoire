@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  getPatients,
+  subscribePatients,
   createPatient,
   updatePatient,
   deletePatient,
@@ -11,40 +11,34 @@ import {
 import type { Patient } from '@/types';
 
 export function usePatients() {
-  const [patients, setPatients]   = useState<Patient[]>([]);
-  const [loading, setLoading]     = useState<boolean>(true);
-  const [error, setError]         = useState<string | null>(null);
-
-  const fetchPatients = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await getPatients();
-      setPatients(data);
-    } catch (err) {
-      setError('Erreur lors du chargement des patients');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading]   = useState<boolean>(true);
+  const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPatients();
-  }, [fetchPatients]);
+    const unsub = subscribePatients(
+      (data) => {
+        setPatients(data);
+        setLoading(false);
+      },
+      (err) => {
+        setError('Erreur lors du chargement des patients');
+        setLoading(false);
+        console.error(err);
+      },
+    );
+    return () => unsub();
+  }, []);
 
   const addPatient = async (
     data: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<string> => {
-    const numero = await createPatient(data);
-    await fetchPatients();
-    return numero;
+    return createPatient(data);
   };
 
   // Migration : attribue un matricule aux patients qui n'en ont pas encore.
   const backfillNumeros = async (): Promise<number> => {
-    const count = await assignMissingNumeros();
-    await fetchPatients();
-    return count;
+    return assignMissingNumeros();
   };
 
   const editPatient = async (
@@ -52,30 +46,25 @@ export function usePatients() {
     data: Partial<Omit<Patient, 'id' | 'createdAt'>>
   ): Promise<void> => {
     await updatePatient(id, data);
-    await fetchPatients();
   };
 
   const removePatient = async (id: string): Promise<void> => {
     await deletePatient(id);
-    await fetchPatients();
   };
 
   // Suppression douce : archive / restaure un patient.
   const archive = async (id: string): Promise<void> => {
     await archivePatient(id);
-    await fetchPatients();
   };
 
   const restore = async (id: string): Promise<void> => {
     await restorePatient(id);
-    await fetchPatients();
   };
 
   return {
     patients,
     loading,
     error,
-    fetchPatients,
     addPatient,
     editPatient,
     removePatient,

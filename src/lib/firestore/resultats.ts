@@ -11,6 +11,7 @@ import {
   orderBy,
   where,
   serverTimestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Resultat, PublicResultat } from '@/types';
@@ -41,6 +42,20 @@ export async function getResultats(): Promise<Resultat[]> {
   const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Resultat[];
+}
+
+// ── S'abonner aux résultats en temps réel ─────────
+export function subscribeResultats(
+  onData: (resultats: Resultat[]) => void,
+  onError?: (e: unknown) => void
+): () => void {
+  const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Resultat[]),
+    onError
+  );
 }
 
 // ── Récupérer un résultat par ID ──────────────────
