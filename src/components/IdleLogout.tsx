@@ -5,6 +5,12 @@
 // Une modale d'avertissement s'affiche WARNING_BEFORE_MS avant l'échéance ;
 // pendant l'avertissement, l'activité souris/clavier est ignorée afin
 // d'imposer un choix explicite (« Rester connecté » ou « Se déconnecter »).
+//
+// La détection repose sur l'horodatage ABSOLU de la dernière activité
+// (Date.now()), pas sur un setTimeout : ainsi le temps passé en veille de
+// l'ordinateur est correctement compté (un setTimeout est suspendu pendant la
+// veille, ce qui prolongeait indûment le délai). Au réveil / retour d'onglet,
+// une re-vérification immédiate est déclenchée (visibilitychange).
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 heures
 const WARNING_BEFORE_MS = 2 * 60 * 1000; // avertissement 2 min avant
+const TICK_MS = 1000; // fréquence de vérification + décompte
 const COUNTDOWN_START = Math.ceil(WARNING_BEFORE_MS / 1000);
 const ACTIVITY_EVENTS = [
   "mousemove",
@@ -30,12 +37,9 @@ export default function IdleLogout() {
   const [showWarning, setShowWarning] = useState(false);
   const [remaining, setRemaining] = useState(COUNTDOWN_START);
 
-  const warnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const logoutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdown = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastActivity = useRef(0); // initialisé au montage (cf. effet)
   const warningActive = useRef(false);
   const lastReset = useRef(0);
-  const resetRef = useRef<() => void>(() => {});
 
   const doLogout = useCallback(async () => {
     try {
@@ -51,52 +55,58 @@ export default function IdleLogout() {
     doLogoutRef.current = doLogout;
   }, [doLogout]);
 
+  // Réarme le minuteur (activité récente ou clic « Rester connecté »).
+  const resetActivity = useCallback(() => {
+    lastActivity.current = Date.now();
+    warningActive.current = false;
+    setShowWarning(false);
+  }, []);
+
   useEffect(() => {
-    const clearTimers = () => {
-      if (warnTimer.current) clearTimeout(warnTimer.current);
-      if (logoutTimer.current) clearTimeout(logoutTimer.current);
-      if (countdown.current) clearInterval(countdown.current);
-    };
+    // Point de départ de l'inactivité = montage du composant.
+    lastActivity.current = Date.now();
 
-    const startWarning = () => {
-      warningActive.current = true;
-      setRemaining(COUNTDOWN_START);
-      setShowWarning(true);
-      logoutTimer.current = setTimeout(() => {
+    // Compare le temps écoulé réel (horloge murale) au seuil d'inactivité.
+    const check = () => {
+      const elapsed = Date.now() - lastActivity.current;
+      if (elapsed >= IDLE_TIMEOUT_MS) {
+        warningActive.current = false;
         void doLogoutRef.current();
-      }, WARNING_BEFORE_MS);
-      countdown.current = setInterval(() => {
-        setRemaining((r) => (r > 1 ? r - 1 : 0));
-      }, 1000);
+        return;
+      }
+      if (elapsed >= IDLE_TIMEOUT_MS - WARNING_BEFORE_MS) {
+        warningActive.current = true;
+        setShowWarning(true);
+        setRemaining(Math.max(0, Math.ceil((IDLE_TIMEOUT_MS - elapsed) / 1000)));
+      } else if (warningActive.current) {
+        warningActive.current = false;
+        setShowWarning(false);
+      }
     };
-
-    const reset = () => {
-      clearTimers();
-      warningActive.current = false;
-      setShowWarning(false);
-      warnTimer.current = setTimeout(
-        startWarning,
-        IDLE_TIMEOUT_MS - WARNING_BEFORE_MS,
-      );
-    };
-    resetRef.current = reset;
 
     const onActivity = () => {
       if (warningActive.current) return; // choix explicite requis pendant l'alerte
       const now = Date.now();
       if (now - lastReset.current < 1000) return; // throttle
       lastReset.current = now;
-      reset();
+      lastActivity.current = now;
     };
 
-    reset();
+    // Retour d'onglet / réveil de veille : vérifier sans attendre le prochain tick.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+
+    const interval = setInterval(check, TICK_MS);
     ACTIVITY_EVENTS.forEach((e) =>
       window.addEventListener(e, onActivity, { passive: true }),
     );
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      clearTimers();
+      clearInterval(interval);
       ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, onActivity));
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -124,7 +134,7 @@ export default function IdleLogout() {
             Se déconnecter
           </button>
           <button
-            onClick={() => resetRef.current()}
+            onClick={resetActivity}
             className="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700
               text-white font-semibold text-sm transition-colors"
           >
