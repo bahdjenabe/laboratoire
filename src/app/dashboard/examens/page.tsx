@@ -57,6 +57,15 @@ const formatDate = (value: unknown): string => {
     : "—";
 };
 
+// Active une ligne au clavier (Entrée / Espace) comme un bouton.
+const onActivate =
+  (action: () => void) => (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      action();
+    }
+  };
+
 export default function ExamensPage() {
   const { examens, loading, addExamens, removeExamen } = useExamens();
   const { patients } = usePatients();
@@ -345,6 +354,7 @@ export default function ExamensPage() {
                 type="checkbox"
                 checked={allPageSelected}
                 onChange={(e) => setMany(pageExamIds, e.target.checked)}
+                aria-label="Tout sélectionner sur la page"
                 className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
               />
             )}
@@ -413,9 +423,15 @@ export default function ExamensPage() {
               >
                 {/* Ligne commande */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  aria-label={`Commande de ${patientNom(cmd.patientId)}, ${cmd.exams.length} examen(s)`}
                   onClick={() => toggleExpand(cmd.key)}
+                  onKeyDown={onActivate(() => toggleExpand(cmd.key))}
                   className="grid grid-cols-12 px-5 py-4 items-center
-                    hover:bg-slate-50 transition-colors cursor-pointer"
+                    hover:bg-slate-50 transition-colors cursor-pointer
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
                 >
                   <div className="col-span-4 flex items-center gap-3">
                     {estAdmin && (
@@ -424,13 +440,18 @@ export default function ExamensPage() {
                         checked={groupSelected}
                         onChange={(e) => setMany(groupIds, e.target.checked)}
                         onClick={(e) => e.stopPropagation()}
+                        aria-label="Sélectionner la commande"
                         className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
                       />
                     )}
-                    <span className="text-slate-400 text-xs w-3 flex-shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className="text-slate-400 text-xs w-3 flex-shrink-0"
+                    >
                       {isOpen ? "▾" : "▸"}
                     </span>
                     <div
+                      aria-hidden="true"
                       className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600
                       flex items-center justify-center text-base flex-shrink-0"
                     >
@@ -476,11 +497,18 @@ export default function ExamensPage() {
                       return (
                         <div
                           key={examen.id}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Ouvrir l'examen ${examen.nomExamen}`}
                           onClick={() =>
                             router.push(`/dashboard/examens/${examen.id}`)
                           }
+                          onKeyDown={onActivate(() =>
+                            router.push(`/dashboard/examens/${examen.id}`),
+                          )}
                           className="grid grid-cols-12 px-5 py-3 items-center
-                            border-t border-slate-100 hover:bg-white transition-colors cursor-pointer"
+                            border-t border-slate-100 hover:bg-white transition-colors cursor-pointer
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
                         >
                           <div className="col-span-4 flex items-center gap-3 pl-7">
                             {estAdmin && (
@@ -489,6 +517,7 @@ export default function ExamensPage() {
                                 checked={selected.has(examen.id)}
                                 onChange={() => toggle(examen.id)}
                                 onClick={(e) => e.stopPropagation()}
+                                aria-label={`Sélectionner ${examen.nomExamen}`}
                                 className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
                               />
                             )}
@@ -517,6 +546,8 @@ export default function ExamensPage() {
                                   e.stopPropagation();
                                   askDelete(examen.id);
                                 }}
+                                aria-label={`Supprimer ${examen.nomExamen}`}
+                                title="Supprimer"
                                 className="w-7 h-7 flex items-center justify-center rounded-lg
                                   bg-slate-100 hover:bg-red-100 hover:text-red-600
                                   text-slate-500 transition-colors text-xs flex-shrink-0"

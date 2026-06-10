@@ -69,6 +69,15 @@ const formatDate = (value: unknown): string => {
     : "—";
 };
 
+// Active une ligne au clavier (Entrée / Espace) comme un bouton.
+const onActivate =
+  (action: () => void) => (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      action();
+    }
+  };
+
 // Affichage du statut global d'une commande de paiements.
 const STATUT_CMD: Record<StatutPaiementCommande, { label: string; cls: string }> =
   {
@@ -444,6 +453,7 @@ export default function PaiementsPage() {
                 type="checkbox"
                 checked={allPageSelected}
                 onChange={(e) => setMany(pagePaiementIds, e.target.checked)}
+                aria-label="Tout sélectionner sur la page"
                 className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
               />
             )}
@@ -517,9 +527,15 @@ export default function PaiementsPage() {
               >
                 {/* Ligne commande */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  aria-label={`Paiement de ${patientNom(cmd.patientId)}, ${cmd.paiements.length} examen(s)`}
                   onClick={() => toggleExpand(cmd.key)}
+                  onKeyDown={onActivate(() => toggleExpand(cmd.key))}
                   className="grid grid-cols-12 px-5 py-4 items-center
-                    hover:bg-slate-50 transition-colors cursor-pointer"
+                    hover:bg-slate-50 transition-colors cursor-pointer
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
                 >
                   <div className="col-span-3 flex items-center gap-3">
                     {estAdmin && (
@@ -528,10 +544,14 @@ export default function PaiementsPage() {
                         checked={groupSelected}
                         onChange={(e) => setMany(groupIds, e.target.checked)}
                         onClick={(e) => e.stopPropagation()}
+                        aria-label="Sélectionner la commande"
                         className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
                       />
                     )}
-                    <span className="text-slate-400 text-xs w-3 flex-shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className="text-slate-400 text-xs w-3 flex-shrink-0"
+                    >
                       {isOpen ? "▾" : "▸"}
                     </span>
                     <div className="min-w-0">
@@ -583,6 +603,7 @@ export default function PaiementsPage() {
                     <button
                       onClick={() => openEdit(cmd)}
                       title="Modifier le paiement"
+                      aria-label="Modifier le paiement"
                       className="w-8 h-8 flex items-center justify-center rounded-lg
                         bg-slate-100 hover:bg-blue-100 hover:text-blue-600
                         text-slate-500 transition-colors text-sm"
@@ -593,6 +614,7 @@ export default function PaiementsPage() {
                       onClick={() => handleRecu(cmd)}
                       disabled={busy === cmd.key}
                       title="Télécharger le reçu"
+                      aria-label="Télécharger le reçu"
                       className="w-8 h-8 flex items-center justify-center rounded-lg
                         bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600
                         text-slate-500 transition-colors text-sm disabled:opacity-50"
@@ -603,6 +625,7 @@ export default function PaiementsPage() {
                       <button
                         onClick={() => setShowConfirm(cmd)}
                         title="Supprimer"
+                        aria-label="Supprimer le paiement"
                         className="w-8 h-8 flex items-center justify-center rounded-lg
                           bg-slate-100 hover:bg-red-100 hover:text-red-600
                           text-slate-500 transition-colors text-sm"
@@ -628,6 +651,7 @@ export default function PaiementsPage() {
                               type="checkbox"
                               checked={selected.has(p.id)}
                               onChange={() => toggle(p.id)}
+                              aria-label={`Sélectionner le paiement ${examenNom(p.examenId)}`}
                               className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
                             />
                           )}
