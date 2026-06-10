@@ -11,7 +11,11 @@ import {
   catalogueExamenSchema,
   type CatalogueExamenInput,
 } from "@/lib/validations";
-import { EXAMENS_DISPONIBLES, TOUS_LES_EXAMENS } from "@/lib/examensDisponibles";
+import {
+  EXAMENS_DISPONIBLES,
+  TOUS_LES_EXAMENS,
+  EXAMENS_PAR_DEFAUT,
+} from "@/lib/examensDisponibles";
 import type { CatalogueExamen } from "@/types";
 
 const inputCls = `w-full h-11 px-3.5 rounded-xl border border-slate-200
@@ -40,6 +44,8 @@ export default function CataloguePage() {
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [formError, setFormError] = useState("");
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
 
   const {
     register,
@@ -113,6 +119,31 @@ export default function CataloguePage() {
     }
   };
 
+  // Insère les examens par défaut absents du catalogue (ignore les doublons).
+  const handleSeed = async () => {
+    setSeedMsg(null);
+    setSeeding(true);
+    try {
+      const existants = new Set(catalogue.map((c) => c.nom.toLowerCase()));
+      const aAjouter = EXAMENS_PAR_DEFAUT.filter(
+        (e) => !existants.has(e.nom.toLowerCase()),
+      );
+      for (const e of aAjouter) {
+        await addCatalogueExamen({ nom: e.nom, prix: e.prix });
+      }
+      setSeedMsg(
+        aAjouter.length === 0
+          ? "Tous les examens par défaut sont déjà au catalogue."
+          : `${aAjouter.length} examen(s) ajouté(s). Ajustez les prix si besoin.`,
+      );
+    } catch (err) {
+      setSeedMsg("Erreur lors de l'ajout des examens par défaut.");
+      console.error(err);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!showConfirm) return;
     setDeleting(true);
@@ -136,16 +167,40 @@ export default function CataloguePage() {
             {catalogue.length} examen{catalogue.length > 1 ? "s" : ""} au tarif
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600
-            hover:bg-emerald-700 text-white text-sm font-semibold
-            rounded-xl transition-all shadow-lg shadow-emerald-600/20
-            hover:shadow-emerald-600/30 hover:-translate-y-0.5"
-        >
-          + Nouvel examen
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200
+              hover:bg-slate-50 text-slate-700 text-sm font-semibold
+              rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {seeding ? "Ajout..." : "✨ Examens par défaut"}
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600
+              hover:bg-emerald-700 text-white text-sm font-semibold
+              rounded-xl transition-all shadow-lg shadow-emerald-600/20
+              hover:shadow-emerald-600/30 hover:-translate-y-0.5"
+          >
+            + Nouvel examen
+          </button>
+        </div>
       </div>
+
+      {/* Message d'ajout des examens par défaut */}
+      {seedMsg && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 text-sm">
+          <span>✅ {seedMsg}</span>
+          <button
+            onClick={() => setSeedMsg(null)}
+            className="text-emerald-600 hover:text-emerald-800"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Recherche */}
       <div className="relative">
@@ -202,12 +257,21 @@ export default function CataloguePage() {
                 : "Ajoutez les examens proposés par le laboratoire"}
             </p>
             {!search && (
-              <button
-                onClick={openCreate}
-                className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
-              >
-                + Ajouter un examen
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={handleSeed}
+                  disabled={seeding}
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  {seeding ? "Ajout..." : "✨ Ajouter les examens par défaut"}
+                </button>
+                <button
+                  onClick={openCreate}
+                  className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+                >
+                  + Ajouter un examen
+                </button>
+              </div>
             )}
           </div>
         ) : (

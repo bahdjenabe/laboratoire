@@ -106,3 +106,24 @@ export const EXAMENS_DISPONIBLES: FamilleExamens[] = [
 export const TOUS_LES_EXAMENS: string[] = EXAMENS_DISPONIBLES.flatMap(
   (f) => f.examens,
 );
+
+// Sélection d'examens courants pré-remplie en un clic depuis le catalogue.
+// Les prix (GNF) sont indicatifs : l'admin les ajuste ensuite. Les noms
+// correspondent exactement à EXAMENS_DISPONIBLES.
+export const EXAMENS_PAR_DEFAUT: { nom: string; prix: number }[] = [
+  { nom: "Hémogramme (NFS)", prix: 50000 },
+  { nom: "Groupage sanguin ABO/Rhésus", prix: 25000 },
+  { nom: "Glycémie à jeun", prix: 30000 },
+  { nom: "Créatininémie", prix: 30000 },
+  { nom: "Transaminases (ASAT/ALAT)", prix: 40000 },
+  { nom: "Bilan lipidique complet", prix: 60000 },
+  { nom: "Protéine C réactive (CRP)", prix: 35000 },
+  { nom: "Test de paludisme (TDR)", prix: 25000 },
+  { nom: "Goutte épaisse / frottis (paludisme)", prix: 20000 },
+  { nom: "Sérodiagnostic de Widal (typhoïde)", prix: 35000 },
+  { nom: "Test VIH (dépistage)", prix: 30000 },
+  { nom: "Antigène HBs (hépatite B)", prix: 35000 },
+  { nom: "Test de grossesse (β-HCG)", prix: 25000 },
+  { nom: "ECBU (cytobactériologie des urines)", prix: 40000 },
+  { nom: "Examen parasitologique des selles (KAOP)", prix: 25000 },
+];
