@@ -163,6 +163,17 @@ export function generateRecu(
   doc.setTextColor(...EMERALD);
   doc.text("REÇU DE", marginX + 5, y + 7);
 
+  // Date de la commande (corps du reçu, en plus de l'en-tête).
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...GRAY);
+  doc.text(
+    `Date : ${formatDate(paiement.createdAt)}`,
+    pageW - marginX - 5,
+    y + 7,
+    { align: "right" },
+  );
+
   // Téléphone (à droite) — mesuré d'abord pour borner le nom à gauche
   const telStr = `Tél : ${patient.telephone || "—"}`;
   doc.setFont("helvetica", "normal");
