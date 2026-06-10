@@ -50,6 +50,13 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["admin", "technicien"],
   },
   {
+    // Catalogue des examens et de leurs prix : gestion réservée à l'admin.
+    label: "Catalogue",
+    href: "/dashboard/catalogue",
+    icon: "📖",
+    roles: ["admin"],
+  },
+  {
     label: "Personnel",
     href: "/dashboard/personnel",
     icon: "👥",

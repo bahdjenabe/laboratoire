@@ -20,6 +20,13 @@ service cloud.firestore {
       allow write: if hasRole('admin') || hasRole('technicien');
     }
     
+    // Catalogue des examens et de leurs prix. Lecture pour tout le personnel
+    // (sélection à la création d'un examen) ; gestion réservée à l'admin.
+    match /catalogue_examens/{id} {
+      allow read: if isAuth();
+      allow create, update, delete: if hasRole('admin');
+    }
+
     match /examens/{id} {
       allow read: if isAuth();
       allow create: if hasRole('admin') || hasRole('technicien');

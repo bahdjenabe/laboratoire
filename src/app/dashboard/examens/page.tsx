@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
+import { useCatalogue } from "@/hooks/useCatalogue";
 import { useAuth } from "@/context/AuthContext";
 import { getResultatByExamen } from "@/lib/firestore/resultats";
 import { getPaiementsByExamen } from "@/lib/firestore/paiements";
@@ -32,26 +33,13 @@ const FILTRES: { key: StatutExamen | "tous"; label: string }[] = [
   { key: "valide", label: "Validé" },
 ];
 
-// Analyses fréquentes (saisie assistée)
-const ANALYSES_COURANTES = [
-  "Hémogramme (NFS)",
-  "Glycémie à jeun",
-  "Test de paludisme (TDR)",
-  "Groupage sanguin",
-  "Test VIH",
-  "Widal (typhoïde)",
-  "Créatininémie",
-  "Transaminases (ASAT/ALAT)",
-  "Bilan lipidique",
-  "Test de grossesse (β-HCG)",
-];
-
 const formatGNF = (n: number) =>
   `${new Intl.NumberFormat("fr-FR").format(n)} GNF`;
 
 export default function ExamensPage() {
   const { examens, loading, addExamen, removeExamen } = useExamens();
   const { patients } = usePatients();
+  const { catalogue, loading: catalogueLoading } = useCatalogue();
   const { user } = useAuth();
   const router = useRouter();
 
@@ -80,9 +68,33 @@ export default function ExamensPage() {
     formState: { errors, isSubmitting },
   } = useForm<ExamenInput>({
     resolver: zodResolver(examenSchema),
-    defaultValues: { patientId: "", nomExamen: "", prix: 0 },
+    defaultValues: { patientId: "", catalogueIds: [] },
   });
   const patientId = watch("patientId");
+  const catalogueIds = watch("catalogueIds");
+
+  // Recherche dans le catalogue lors de la sélection des examens.
+  const [catSearch, setCatSearch] = useState("");
+  const catalogueFiltre = useMemo(() => {
+    const q = catSearch.trim().toLowerCase();
+    if (!q) return catalogue;
+    return catalogue.filter((c) => c.nom.toLowerCase().includes(q));
+  }, [catalogue, catSearch]);
+
+  const toggleCatalogue = (id: string) => {
+    const next = catalogueIds.includes(id)
+      ? catalogueIds.filter((x) => x !== id)
+      : [...catalogueIds, id];
+    setValue("catalogueIds", next, { shouldValidate: true });
+  };
+
+  const totalSelection = useMemo(
+    () =>
+      catalogue
+        .filter((c) => catalogueIds.includes(c.id))
+        .reduce((sum, c) => sum + c.prix, 0),
+    [catalogue, catalogueIds],
+  );
 
   const patientsMap = useMemo(
     () => new Map(patients.map((p) => [p.id, p])),
@@ -139,22 +151,33 @@ export default function ExamensPage() {
 
   // Ouvre une création vierge (réinitialise le patient/champs précédents).
   const openForm = () => {
-    reset({ patientId: "", nomExamen: "", prix: 0 });
+    reset({ patientId: "", catalogueIds: [] });
+    setCatSearch("");
     setFormError("");
     setShowForm(true);
   };
 
+  // Un patient peut faire plusieurs examens : on crée un document par examen
+  // sélectionné, chacun avec le prix repris du catalogue.
   const onSubmit = async (data: ExamenInput) => {
     setFormError("");
+    const choisis = catalogue.filter((c) => data.catalogueIds.includes(c.id));
+    if (choisis.length === 0) {
+      setFormError("Sélectionnez au moins un examen.");
+      return;
+    }
     try {
-      await addExamen({
-        patientId: data.patientId,
-        nomExamen: data.nomExamen,
-        prix: data.prix,
-        statut: "en_attente",
-        technicienId: user?.uid,
-      });
-      reset({ patientId: "", nomExamen: "", prix: 0 });
+      for (const cat of choisis) {
+        await addExamen({
+          patientId: data.patientId,
+          nomExamen: cat.nom,
+          prix: cat.prix,
+          statut: "en_attente",
+          technicienId: user?.uid,
+        });
+      }
+      reset({ patientId: "", catalogueIds: [] });
+      setCatSearch("");
       setShowForm(false);
     } catch (err) {
       setFormError("Erreur lors de l'enregistrement. Réessayez.");
@@ -469,45 +492,87 @@ export default function ExamensPage() {
                 <>
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                  Type d&apos;examen *
+                  Examens à réaliser *
                 </label>
-                <input
-                  list="analyses-courantes"
-                  {...register("nomExamen")}
-                  placeholder="ex: Hémogramme (NFS)"
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                    bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
-                    focus:outline-none focus:border-emerald-500
-                    focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                />
-                <datalist id="analyses-courantes">
-                  {ANALYSES_COURANTES.map((a) => (
-                    <option key={a} value={a} />
-                  ))}
-                </datalist>
-                {errors.nomExamen && (
+                <p className="text-xs text-slate-400">
+                  Cochez un ou plusieurs examens. Le prix est repris du
+                  catalogue.
+                </p>
+                <input type="hidden" {...register("catalogueIds")} />
+
+                {catalogue.length > 8 && (
+                  <input
+                    type="text"
+                    value={catSearch}
+                    onChange={(e) => setCatSearch(e.target.value)}
+                    placeholder="Rechercher un examen..."
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200
+                      bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
+                      focus:outline-none focus:border-emerald-500
+                      focus:ring-2 focus:ring-emerald-500/10 transition-all"
+                  />
+                )}
+
+                {catalogueLoading ? (
+                  <p className="text-sm text-slate-400 text-center py-4">
+                    Chargement du catalogue...
+                  </p>
+                ) : catalogue.length === 0 ? (
+                  <p className="text-xs text-amber-600 py-2">
+                    Aucun examen au catalogue. Un administrateur doit d&apos;abord
+                    en ajouter (menu Catalogue).
+                  </p>
+                ) : (
+                  <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-50">
+                    {catalogueFiltre.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-4">
+                        Aucun examen trouvé.
+                      </p>
+                    ) : (
+                      catalogueFiltre.map((c) => {
+                        const checked = catalogueIds.includes(c.id);
+                        return (
+                          <label
+                            key={c.id}
+                            className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors
+                              ${checked ? "bg-emerald-50/60" : "hover:bg-slate-50"}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleCatalogue(c.id)}
+                              className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                            />
+                            <span className="flex-1 text-sm font-medium text-slate-800 truncate">
+                              {c.nom}
+                            </span>
+                            <span className="text-sm text-slate-500 flex-shrink-0">
+                              {formatGNF(c.prix)}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {errors.catalogueIds && (
                   <p className="text-xs text-red-600">
-                    {errors.nomExamen.message}
+                    {errors.catalogueIds.message}
                   </p>
                 )}
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                  Prix (GNF) *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  {...register("prix", { valueAsNumber: true })}
-                  placeholder="ex: 50000"
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200
-                    bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
-                    focus:outline-none focus:border-emerald-500
-                    focus:ring-2 focus:ring-emerald-500/10 transition-all"
-                />
-                {errors.prix && (
-                  <p className="text-xs text-red-600">{errors.prix.message}</p>
+                {catalogueIds.length > 0 && (
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100 text-sm">
+                    <span className="text-slate-500">
+                      {catalogueIds.length} examen
+                      {catalogueIds.length > 1 ? "s" : ""} sélectionné
+                      {catalogueIds.length > 1 ? "s" : ""}
+                    </span>
+                    <span className="font-semibold text-slate-900">
+                      Total : {formatGNF(totalSelection)}
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -533,7 +598,11 @@ export default function ExamensPage() {
                     text-white text-sm font-semibold transition-colors
                     disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting ? "Enregistrement..." : "Créer l'examen"}
+                  {isSubmitting
+                    ? "Enregistrement..."
+                    : catalogueIds.length > 1
+                      ? `Créer ${catalogueIds.length} examens`
+                      : "Créer l'examen"}
                 </button>
               </div>
                 </>

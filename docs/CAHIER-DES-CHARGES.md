@@ -9,12 +9,19 @@
 | Élément | Valeur |
 |---------|--------|
 | Projet | LabMédical |
-| Version du document | 1.0 |
-| Date | 2026-06-08 |
+| Version du document | 1.1 |
+| Date | 2026-06-09 |
 | Auteur | Équipe projet |
 | Statut | Référence |
 | Projet Firebase | `laboratoire-f8e84` |
 | Dépôt | `github.com/bahdjenabe/laboratoire` |
+
+### Historique des révisions
+
+| Version | Date | Évolutions |
+|---------|------|-----------|
+| 1.0 | 2026-06-08 | Version initiale. |
+| 1.1 | 2026-06-09 | Matricule patient unique (P-AAAA-NNNN) + recherche par numéro ; archivage des patients (suppression douce) au lieu de suppression définitive ; unicité téléphone/email ; création d'examen par saisie obligatoire du matricule ; modes de paiement détaillés (réseau carte / opérateur mobile / banque) + référence de transaction + édition d'un paiement ; pagination des listes (5/page) et sélection multiple ; portail patient enrichi (démographie + PDF officiel téléchargeable) ; cachet & signature par défaut sur les PDF ; déconnexion auto portée à 2 h (avertissement 2 min) ; durcissement RG-06 (interdiction de modifier son propre rôle, admin inclus). |
 
 > Les exigences sont numérotées : **EF** = exigence fonctionnelle,
 > **ENF** = exigence non-fonctionnelle, **RG** = règle de gestion.
@@ -108,7 +115,7 @@ l'enregistrement du patient à la mise à disposition sécurisée des résultats
 | Action | Admin | Technicien | Médecin |
 |--------|:---:|:---:|:---:|
 | Créer / modifier un patient | ✅ | ✅ | ❌ (lecture) |
-| Supprimer un patient | ✅ | ❌ | ❌ |
+| Archiver / restaurer un patient | ✅ | ❌ | ❌ |
 | Créer / modifier un examen | ✅ | ✅ | ❌ (lecture) |
 | Supprimer un examen | ✅ | ✅ | ❌ |
 | Encaisser un paiement | ✅ | ✅ | ❌ |
@@ -128,8 +135,9 @@ l'enregistrement du patient à la mise à disposition sécurisée des résultats
 - **EF-03** — Contrôle d'accès aux pages selon le rôle (redirection si interdit).
 - **EF-04** — Redirection post-connexion selon le rôle (médecin → file de
   validation des résultats).
-- **EF-05** — Déconnexion automatique après **30 min d'inactivité**, avec une
-  modale d'avertissement **1 min** avant et possibilité de rester connecté.
+- **EF-05** — Déconnexion automatique après **2 h d'inactivité**, avec une
+  modale d'avertissement **2 min** avant (compte à rebours) et possibilité de
+  rester connecté.
 - **EF-06** — Déconnexion manuelle.
 
 ### 4.2 Tableau de bord
@@ -140,20 +148,38 @@ l'enregistrement du patient à la mise à disposition sécurisée des résultats
 - **EF-10** — Actualisation manuelle des données.
 
 ### 4.3 Gestion des patients
-- **EF-11** — Liste des patients avec recherche (nom, prénom, téléphone, email).
+- **EF-11** — Liste des patients (vue Actifs / Archivés) avec recherche
+  (**matricule**, nom, prénom, téléphone, email) et **pagination (5/page)**.
 - **EF-12** — Création d'un patient (identité, date de naissance, sexe,
-  téléphone, e-mail, adresse, groupe sanguin, antécédents).
+  téléphone, e-mail, adresse, groupe sanguin, antécédents). Un **matricule
+  unique** est attribué automatiquement (cf. EF-41).
 - **EF-13** — Modification d'un patient.
-- **EF-14** — Fiche patient : informations, **historique des examens** et **des
-  paiements**, total payé.
-- **EF-15** — Suppression d'un patient (admin), **bloquée s'il a des examens**.
+- **EF-14** — Fiche patient : matricule, informations, **historique des
+  examens** et **des paiements**, total payé.
+- **EF-15** — **Archivage** d'un patient (admin) au lieu de suppression
+  définitive : le dossier est masqué mais conservé, et **restaurable** (cf.
+  EF-43). Possibilité d'archiver/restaurer **plusieurs patients à la fois**
+  (sélection par cases à cocher).
+- **EF-41** — **Matricule patient** au format `P-AAAA-NNNN` (année + séquence),
+  unique, attribué à l'enregistrement via un compteur Firestore transactionnel.
+  Sert d'identifiant métier ; jamais réattribué (cf. RG-09). Bouton admin pour
+  attribuer un matricule aux patients antérieurs qui n'en ont pas.
+- **EF-42** — **Unicité** : refus de créer/modifier un patient si le téléphone
+  (comparaison sur les chiffres) ou l'email (insensible à la casse) existe déjà.
+- **EF-43** — **Restauration** d'un patient archivé (admin), individuelle ou en
+  lot. Les patients archivés restent visibles sur les examens/paiements
+  existants (historique préservé) mais ne sont pas proposés aux nouvelles
+  saisies.
 
 ### 4.4 Gestion des examens
-- **EF-16** — Liste des examens avec filtres par statut et recherche
-  (examen ou patient).
-- **EF-17** — Création d'un examen : **sélection du patient par recherche**
-  (nom/téléphone, désambiguïsation par date de naissance et sexe), type d'examen
-  avec suggestions d'analyses courantes, prix.
+- **EF-16** — Liste des examens avec filtres par statut, recherche
+  (examen ou patient) et **pagination (5/page)**. Sélection multiple pour
+  suppression groupée (admin).
+- **EF-17** — Création d'un examen : **saisie obligatoire du matricule du
+  patient** puis **recherche explicite** (aucune liste pendant la frappe) ; une
+  fois le patient trouvé, sa fiche s'affiche et le reste du formulaire se
+  débloque (type d'examen avec suggestions d'analyses courantes, prix). Seuls
+  les patients actifs sont sélectionnables.
 - **EF-18** — Suivi du statut : `en_attente` → `en_cours` → `terminé` → `validé`.
 - **EF-19** — Page détail : progression visuelle, infos patient, actions selon le
   rôle et le statut.
@@ -169,28 +195,40 @@ l'enregistrement du patient à la mise à disposition sécurisée des résultats
 - **EF-25** — Validation médicale (médecin/admin) → `validé` + horodatage.
 - **EF-26** — Un résultat validé n'est plus modifiable.
 - **EF-27** — Liste des résultats (médecin/admin) avec filtre « À valider /
-  Validés » et recherche.
-- **EF-28** — Génération PDF du rapport d'analyse.
+  Validés », recherche et **pagination (5/page)**.
+- **EF-28** — Génération PDF du rapport d'analyse (en-tête de marque, **cachet
+  et signature par défaut** apposés sur les résultats validés).
 
 ### 4.6 Paiements
 - **EF-29** — Encaissement (admin/technicien) : **sélection de l'examen par
   recherche**, montant **pré-rempli** par le prix, mode de paiement, statut.
-- **EF-30** — Modes de paiement : Espèces, Mobile Money, Carte bancaire, Virement.
-- **EF-31** — Génération PDF du reçu.
-- **EF-32** — Suppression d'un paiement (admin uniquement).
+- **EF-30** — Modes de paiement : Espèces, Mobile Money, Carte bancaire,
+  Virement, avec un **détail** selon le mode (réseau de carte : Visa /
+  Mastercard ; opérateur mobile : Orange Money / MTN MoMo… ; banque pour un
+  virement) et une **référence de transaction** facultative (ID Mobile Money,
+  n° d'autorisation TPE…) pour le rapprochement comptable. **Aucune donnée
+  sensible** (n° de carte, code confidentiel) n'est saisie ni stockée.
+- **EF-31** — Génération PDF du reçu (en-tête de marque, **cachet & signature
+  par défaut**, mode + détail + référence).
+- **EF-32** — **Modification** d'un paiement existant (montant, mode, détail,
+  référence, statut) et **suppression** (admin uniquement, individuelle ou en
+  lot). Liste paginée (5/page).
 - **EF-33** — Totaux : encaissé, en attente.
 
 ### 4.7 Personnel
-- **EF-34** — Liste du personnel (admin).
+- **EF-34** — Liste du personnel (admin), paginée (5/page), avec sélection
+  multiple pour suppression groupée (jamais soi-même).
 - **EF-35** — Création d'un compte (email, mot de passe, rôle).
-- **EF-36** — Modification d'un compte (dont le rôle, par l'admin).
+- **EF-36** — Modification d'un compte (dont le rôle, par l'admin) ; **un
+  utilisateur ne peut pas modifier son propre rôle**, admin inclus (cf. RG-06).
 
 ### 4.8 Portail patient
 - **EF-37** — Consultation publique d'un résultat **validé** via lien token,
   **sans connexion**.
-- **EF-38** — Affichage : patient, analyse, **date de validation**, valeurs,
-  observations.
-- **EF-39** — Impression / enregistrement PDF côté patient.
+- **EF-38** — Affichage : patient (et sa démographie : âge, sexe, téléphone,
+  groupe sanguin), analyse, **date de validation**, valeurs, observations.
+- **EF-39** — **Téléchargement du PDF officiel** (identique à celui du
+  laboratoire, avec cachet & signature) et impression côté patient.
 - **EF-40** — Partage du lien au patient via **WhatsApp / SMS / e-mail** (message
   pré-rempli) depuis la fiche examen, après validation.
 
@@ -217,10 +255,17 @@ Création patient (technicien/admin)
 - **RG-02** — Seul le médecin (ou l'admin) valide un résultat ; le technicien ne
   valide jamais.
 - **RG-03** — Un résultat validé est figé (non modifiable).
-- **RG-04** — Un patient avec examens ne peut être supprimé.
+- **RG-04** — Un patient n'est pas supprimé mais **archivé** (suppression
+  douce) : dossier et historique conservés, restaurables à tout moment.
 - **RG-05** — Un examen avec résultat ou paiement ne peut être supprimé.
-- **RG-06** — Un utilisateur ne peut pas modifier son propre rôle.
+- **RG-06** — Un utilisateur ne peut pas modifier **son propre rôle** (admin
+  inclus) ; un non-admin ne peut pas se promouvoir (imposé côté serveur).
 - **RG-07** — Le patient n'a pas de compte : il consulte par lien sécurisé.
+- **RG-08** — Téléphone et email d'un patient sont **uniques** (contrôle
+  applicatif à la création et à la modification).
+- **RG-09** — Le matricule d'un patient est **unique et jamais réattribué** ;
+  l'archivage/suppression d'un patient ne libère pas son numéro (les trous de
+  séquence sont normaux et préservent la traçabilité des documents émis).
 
 ---
 
@@ -245,8 +290,8 @@ Création patient (technicien/admin)
   consentement, archivage.)*
 
 ### 7.3 Performance
-- **ENF-08** — Affichage des listes fluide ; sélecteurs limités à 50 résultats
-  affichés avec recherche.
+- **ENF-08** — Affichage des listes fluide : **pagination (5/page)** sur toutes
+  les listes ; sélecteurs avec recherche (affichage limité au-delà d'un seuil).
 - **ENF-09** — Chargement initial allégé (cache navigateur de session).
 
 ### 7.4 Ergonomie
@@ -290,8 +335,9 @@ Création patient (technicien/admin)
 `uid`, `email`, `nom`, `prenom`, `role` (admin|medecin|technicien), `createdAt`.
 
 ### `patients`
-`id`, `nom`, `prenom`, `dateNaissance`, `sexe` (M|F|Autre), `telephone`,
-`email?`, `adresse?`, `groupeSanguin?`, `antecedents?`, `createdAt`.
+`id`, `numero?` (matricule P-AAAA-NNNN), `nom`, `prenom`, `dateNaissance`,
+`sexe` (M|F|Autre), `telephone`, `email?`, `adresse?`, `groupeSanguin?`,
+`antecedents?`, `archive?`, `archiveAt?`, `createdAt`, `updatedAt`.
 
 ### `examens`
 `id`, `patientId`, `nomExamen`, `technicienId?`, `medecinId?`,
@@ -304,11 +350,19 @@ Création patient (technicien/admin)
 
 ### `paiements`
 `id`, `patientId`, `examenId`, `montant`, `statut` (paye|non_paye),
-`modePaiement?`, `createdAt`.
+`modePaiement?`, `detailPaiement?`, `referencePaiement?`, `createdAt`.
 
 ### `public_resultats/{token}`
-`token`, `examenNom?`, `patientNom?`, `valeurs`, `observations?`, `valideAt`.
-*(Snapshot public figé, sans référence interne.)*
+`token`, `examenNom?`, `patientPrenom?`, `patientNom?`, `dateNaissance?`,
+`sexe?`, `telephone?`, `groupeSanguin?`, `valeurs`, `observations?`,
+`valideAt`, `ref?`.
+*(Snapshot public figé, sans référence interne ; enrichi de la démographie du
+patient pour le PDF officiel.)*
+
+### `compteurs/{id}`
+Ex. `patients-2026` → `{ seq }`. Compteur séquentiel par année incrémenté en
+transaction pour attribuer les matricules patients. Lecture authentifiée,
+écriture personnel.
 
 ---
 

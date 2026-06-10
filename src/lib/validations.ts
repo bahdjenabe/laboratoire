@@ -31,13 +31,23 @@ export const patientSchema = z.object({
 });
 export type PatientInput = z.infer<typeof patientSchema>;
 
-// ── Examen ────────────────────────────────────────
-export const examenSchema = z.object({
-  patientId: z.string().min(1, "Veuillez sélectionner un patient"),
-  nomExamen: z.string().trim().min(1, "Le type d'examen est requis"),
+// ── Catalogue d'examens (géré par l'admin) ────────
+export const catalogueExamenSchema = z.object({
+  nom: z.string().trim().min(1, "Le nom de l'examen est requis"),
   prix: z
     .number({ message: "Le prix est requis" })
     .min(0, "Le prix doit être positif"),
+});
+export type CatalogueExamenInput = z.infer<typeof catalogueExamenSchema>;
+
+// ── Examen ────────────────────────────────────────
+// Création : on sélectionne un patient et un ou plusieurs examens du
+// catalogue (le prix est repris du catalogue, pas de saisie manuelle).
+export const examenSchema = z.object({
+  patientId: z.string().min(1, "Veuillez sélectionner un patient"),
+  catalogueIds: z
+    .array(z.string().min(1))
+    .min(1, "Sélectionnez au moins un examen"),
 });
 export type ExamenInput = z.infer<typeof examenSchema>;
 

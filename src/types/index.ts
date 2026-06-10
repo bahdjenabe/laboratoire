@@ -31,6 +31,17 @@ export interface Patient {
   createdAt: Date;
 }
 
+// Catalogue des examens proposés par le laboratoire, géré par l'admin.
+// Chaque examen porte son prix : à la création d'un examen patient, le prix
+// est repris du catalogue (plus de saisie manuelle).
+export interface CatalogueExamen {
+  id: string;
+  nom: string;
+  prix: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type StatutExamen = 'en_attente' | 'en_cours' | 'termine' | 'valide';
 
 export interface Examen {
