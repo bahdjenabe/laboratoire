@@ -1,10 +1,14 @@
-// Convertit docs/CAHIER-DES-CHARGES.md en HTML stylé pour impression PDF.
-// Usage : node scripts/md-to-pdf.mjs
+// Convertit un fichier Markdown en HTML stylé pour impression PDF.
+// Usage : node scripts/md-to-pdf.mjs [chemin.md] [sortie.html]
+// Par défaut : docs/CAHIER-DES-CHARGES.md → docs/CAHIER-DES-CHARGES.html
 import { readFileSync, writeFileSync } from "node:fs";
 import { marked } from "marked";
 
-const SRC = "docs/CAHIER-DES-CHARGES.md";
-const OUT = "docs/CAHIER-DES-CHARGES.html";
+const SRC = process.argv[2] ?? "docs/CAHIER-DES-CHARGES.md";
+const OUT = process.argv[3] ?? SRC.replace(/\.md$/i, ".html");
+
+const title =
+  SRC.split(/[\\/]/).pop()?.replace(/\.md$/i, "") ?? "Document";
 
 const body = marked.parse(readFileSync(SRC, "utf8"));
 
@@ -43,7 +47,7 @@ const css = `
 
 const html = `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
-<title>Cahier des charges — LabMédical</title>
+<title>${title} — LabMédical</title>
 <style>${css}</style></head>
 <body>${body}</body></html>`;
 

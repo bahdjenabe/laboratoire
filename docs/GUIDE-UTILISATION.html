@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>GUIDE-UTILISATION — LabMédical</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b; line-height: 1.55; font-size: 12px; margin: 0;
+  }
+  h1 { font-size: 24px; color: #065f46; border-bottom: 3px solid #10b981;
+       padding-bottom: 8px; margin-top: 0; }
+  h2 { font-size: 18px; color: #0f172a; margin-top: 28px;
+       border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+  h3 { font-size: 14px; color: #334155; margin-top: 18px; }
+  h2, h3 { page-break-after: avoid; }
+  p, li { font-size: 12px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px;
+         font-family: "Consolas", "Courier New", monospace; font-size: 11px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px;
+        overflow-x: auto; font-size: 11px; page-break-inside: avoid; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0;
+          font-size: 11px; page-break-inside: avoid; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 9px; text-align: left;
+           vertical-align: top; }
+  th { background: #f0fdf4; color: #065f46; font-weight: 700; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  blockquote { border-left: 4px solid #10b981; background: #f0fdf4;
+               margin: 10px 0; padding: 8px 14px; color: #475569;
+               border-radius: 0 6px 6px 0; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 22px 0; }
+  a { color: #059669; text-decoration: none; }
+  strong { color: #0f172a; }
+</style></head>
+<body><h1>Guide d&#39;utilisation — LabMédical</h1>
+<p>Application de gestion de laboratoire d&#39;analyses médicales.
+Accès : <strong><a href="https://laboratoire-delta.vercel.app">https://laboratoire-delta.vercel.app</a></strong></p>
+<hr>
+<h2>1. Se connecter</h2>
+<ol>
+<li>Ouvrez le lien ci-dessus dans un navigateur (Chrome, Edge, Firefox…).</li>
+<li>Saisissez votre <strong>adresse e-mail</strong> et votre <strong>mot de passe</strong> (fournis par l&#39;administrateur).</li>
+<li>Cliquez sur <strong>Se connecter</strong>.</li>
+</ol>
+<ul>
+<li><strong>Mot de passe oublié ?</strong> Saisissez votre e-mail puis cliquez sur « Mot de passe oublié ? » : un lien de réinitialisation vous est envoyé par e-mail.</li>
+<li><strong>Déconnexion automatique</strong> : après <strong>2 heures sans activité</strong>, une fenêtre « Toujours là ? » s&#39;affiche, puis vous êtes déconnecté. C&#39;est une sécurité.</li>
+<li>Pour quitter manuellement : bouton <strong>Se déconnecter</strong> (en bas du menu de gauche).</li>
+</ul>
+<hr>
+<h2>2. Les trois rôles en un coup d&#39;œil</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Administrateur</strong></th>
+<th><strong>Technicien</strong></th>
+<th><strong>Médecin</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Patients</td>
+<td>✅ gérer</td>
+<td>✅ gérer</td>
+<td>👁️ via l&#39;examen</td>
+</tr>
+<tr>
+<td>Examens</td>
+<td>✅ créer/gérer</td>
+<td>✅ créer</td>
+<td>👁️ consulter</td>
+</tr>
+<tr>
+<td>Saisie des résultats</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Validation</strong> des résultats</td>
+<td>✅</td>
+<td>—</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Paiements</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Catalogue (examens + prix)</td>
+<td>✅</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Personnel (comptes)</td>
+<td>✅</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Suppressions</td>
+<td>✅</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>Chaque utilisateur ne voit dans le menu que ce qui le concerne.</p>
+</blockquote>
+<hr>
+<h2>3. Le parcours complet d&#39;un examen</h2>
+<p>Voici qui fait quoi, dans l&#39;ordre :</p>
+<ol>
+<li><strong>Technicien</strong> — enregistre le <strong>patient</strong> (s&#39;il est nouveau).</li>
+<li><strong>Technicien</strong> — crée l&#39;<strong>examen</strong> : il sélectionne le patient et coche un ou plusieurs examens du catalogue (le prix vient automatiquement).</li>
+<li><strong>Technicien</strong> (accueil) — <strong>encaisse le paiement</strong> de la commande.
+⚠️ <strong>L&#39;analyse ne peut pas démarrer tant que l&#39;examen n&#39;est pas payé.</strong></li>
+<li><strong>Technicien</strong> — <strong>saisit le résultat</strong> de l&#39;analyse depuis la fiche de l&#39;examen.</li>
+<li><strong>Médecin</strong> — <strong>valide</strong> le résultat.</li>
+<li>Le patient est <strong>notifié</strong> et consulte son résultat via un <strong>lien sécurisé</strong> (sans compte).</li>
+</ol>
+<p>Statuts d&#39;un examen : <strong>En attente → En cours → Terminé → Validé</strong>.</p>
+<hr>
+<h2>4. Guide par rôle</h2>
+<h3>👨‍🔬 Technicien (accueil + analyses)</h3>
+<p><strong>Enregistrer un patient</strong></p>
+<ul>
+<li>Menu <strong>Patients</strong> → <strong>+ Nouveau patient</strong> → remplir la fiche → enregistrer.</li>
+<li>Un <strong>matricule</strong> unique est attribué automatiquement (ex. <code>P-2026-0001</code>).</li>
+<li>Le téléphone et l&#39;e-mail doivent être uniques (pas de doublon).</li>
+</ul>
+<p><strong>Créer un (ou plusieurs) examen(s)</strong></p>
+<ul>
+<li>Menu <strong>Examens</strong> → <strong>+ Nouvel examen</strong>.</li>
+<li>Saisir le <strong>matricule du patient</strong> puis lancer la recherche.</li>
+<li><strong>Cocher un ou plusieurs examens</strong> du catalogue → le prix est repris automatiquement, le total s&#39;affiche.</li>
+<li>Valider : les examens cochés ensemble forment <strong>une commande</strong> (une seule ligne dans le tableau).</li>
+</ul>
+<p><strong>Encaisser un paiement</strong></p>
+<ul>
+<li>Menu <strong>Paiements</strong> → <strong>+ Nouveau paiement</strong>.</li>
+<li>Choisir la <strong>commande</strong> du patient → tous ses examens sont encaissés en une fois.</li>
+<li>Choisir le <strong>mode</strong> (espèces, Mobile Money, carte, virement) puis enregistrer.</li>
+<li>Bouton <strong>🧾</strong> : télécharger le <strong>reçu</strong> (un seul reçu pour toute la commande).</li>
+</ul>
+<p><strong>Saisir un résultat</strong></p>
+<ul>
+<li>Menu <strong>Examens</strong> → cliquer sur la commande pour la déplier → ouvrir l&#39;examen.</li>
+<li>(L&#39;examen doit être <strong>payé</strong>.) Cliquer <strong>Démarrer l&#39;analyse</strong>.</li>
+<li>Saisir les <strong>paramètres et valeurs</strong>, ajouter des observations → <strong>Enregistrer</strong>.</li>
+<li>L&#39;examen passe en « Terminé », en attente de validation par le médecin.</li>
+</ul>
+<hr>
+<h3>🩺 Médecin (validation)</h3>
+<ul>
+<li>À la connexion, vous arrivez sur la <strong>liste des résultats</strong> à traiter.</li>
+<li>Ouvrez un résultat saisi par le technicien, vérifiez les valeurs et les observations.</li>
+<li>Cliquez sur <strong>Valider (médecin)</strong>.</li>
+<li>Une fois validé : le résultat est <strong>figé</strong> (non modifiable) et un <strong>lien de consultation</strong> est généré pour le patient.</li>
+<li>Vous pouvez consulter les fiches patients en lecture seule depuis l&#39;examen.</li>
+</ul>
+<hr>
+<h3>🛠️ Administrateur (gestion)</h3>
+<p><strong>Gérer le catalogue d&#39;examens</strong></p>
+<ul>
+<li>Menu <strong>Catalogue</strong> → <strong>+ Nouvel examen</strong> : choisir un examen dans la liste déroulante et saisir son <strong>prix</strong>.</li>
+<li>Bouton <strong>✨ Examens par défaut</strong> : pré-remplit une sélection d&#39;examens courants (à ajuster).</li>
+<li>✏️ modifier un prix · 🗑️ retirer un examen du catalogue.</li>
+</ul>
+<p><strong>Gérer le personnel</strong></p>
+<ul>
+<li>Menu <strong>Personnel</strong> → <strong>+ Nouveau membre</strong> : prénom, nom, e-mail, mot de passe, <strong>rôle</strong>.</li>
+<li>Communiquez ses identifiants au nouvel utilisateur.</li>
+<li>✏️ modifier · 🗑️ retirer un membre (il perd alors l&#39;accès).</li>
+</ul>
+<p><strong>Suppressions</strong> : seul l&#39;administrateur peut supprimer patients, examens et paiements (y compris par sélection multiple). Un examen lié à un résultat ou un paiement ne peut pas être supprimé (sécurité).</p>
+<hr>
+<h2>5. Le patient consulte son résultat</h2>
+<ul>
+<li>Le patient <strong>ne se connecte pas</strong> à l&#39;application.</li>
+<li>Une fois le résultat <strong>validé</strong>, il reçoit un <strong>lien sécurisé</strong> (par SMS / e-mail / partage).</li>
+<li>Ce lien ouvre une page affichant <strong>uniquement son résultat</strong> (et permet d&#39;en télécharger le PDF).</li>
+</ul>
+<hr>
+<h2>6. Bon à savoir</h2>
+<ul>
+<li><strong>Mises à jour en direct</strong> : les listes se rafraîchissent automatiquement quand un collègue saisit quelque chose (pas besoin de recharger la page).</li>
+<li><strong>Paiement obligatoire</strong> avant toute analyse.</li>
+<li><strong>Recherche</strong> : un champ de recherche en haut de chaque liste (par nom de patient, d&#39;examen…).</li>
+<li><strong>Sécurité</strong> : ne partagez jamais votre mot de passe. Déconnectez-vous sur un poste partagé.</li>
+</ul>
+<hr>
+<p><em>Pour toute question technique, contactez l&#39;administrateur de l&#39;application.</em></p>
+</body></html>
