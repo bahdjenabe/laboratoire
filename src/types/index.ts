@@ -95,6 +95,14 @@ export interface PublicResultat {
   valideAt: Date;
   // Référence courte affichée sur le rapport (= id du résultat).
   ref?: string;
+  // Variante « commande » : un seul lien regroupant plusieurs examens validés.
+  // Présent uniquement pour les snapshots de commande (sinon résultat unique).
+  examens?: {
+    examenNom?: string;
+    valeurs: Record<string, string | number>;
+    observations?: string;
+    ref?: string;
+  }[];
 }
 
 export interface Paiement {

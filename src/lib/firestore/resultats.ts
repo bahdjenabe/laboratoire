@@ -129,6 +129,45 @@ export async function validerResultat(
   return token;
 }
 
+// ── Publier une commande (un seul lien pour plusieurs examens) ────
+// Crée/écrase un snapshot public combiné sous `token`, contenant la
+// démographie du patient + la liste des examens validés. Idempotent.
+export interface CommandePublicInput {
+  patientPrenom?: string;
+  patientNom?: string;
+  dateNaissance?: Date;
+  sexe?: 'M' | 'F' | 'Autre';
+  telephone?: string;
+  groupeSanguin?: string;
+  examens: {
+    examenNom?: string;
+    valeurs: Record<string, string | number>;
+    observations?: string;
+    ref?: string;
+  }[];
+}
+
+export async function publierCommande(
+  token: string,
+  data: CommandePublicInput
+): Promise<void> {
+  await setDoc(doc(db, PUBLIC_COLLECTION, token), {
+    patientPrenom: data.patientPrenom ?? '',
+    patientNom: data.patientNom ?? '',
+    dateNaissance: data.dateNaissance ?? null,
+    sexe: data.sexe ?? '',
+    telephone: data.telephone ?? '',
+    groupeSanguin: data.groupeSanguin ?? '',
+    valideAt: serverTimestamp(),
+    examens: data.examens.map((e) => ({
+      examenNom: e.examenNom ?? '',
+      valeurs: e.valeurs,
+      observations: e.observations ?? '',
+      ref: e.ref ?? '',
+    })),
+  });
+}
+
 // ── Récupérer le snapshot public via token (consultation patient) ──
 export async function getPublicResultat(
   token: string

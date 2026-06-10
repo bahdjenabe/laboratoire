@@ -7,13 +7,26 @@ import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
 import { usePagination } from "@/hooks/usePagination";
-import { validerResultat } from "@/lib/firestore/resultats";
+import { validerResultat, publierCommande } from "@/lib/firestore/resultats";
 import { updateStatutExamen } from "@/lib/firestore/examens";
 import { logError } from "@/lib/logError";
 import Pagination from "@/components/Pagination";
 import PatientNotify from "@/components/PatientNotify";
 import CommandeNotify from "@/components/CommandeNotify";
-import type { Resultat } from "@/types";
+import type { Patient, Resultat } from "@/types";
+
+// Token public stable d'une commande : SHA-256 de sa clé (commandeId).
+// Déterministe → le lien reste le même à chaque partage ; indevinable car
+// dérivé du commandeId (UUID aléatoire non exposé publiquement).
+async function commandeToken(key: string): Promise<string> {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode("cmd:" + key),
+  );
+  return [...new Uint8Array(buf)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
 const FILTRES: { key: "tous" | "valide" | "attente"; label: string }[] = [
   { key: "tous", label: "Tous" },
@@ -61,9 +74,12 @@ export default function ResultatsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmCmd, setConfirmCmd] = useState<CommandeResultat | null>(null);
   const [shareResultat, setShareResultat] = useState<Resultat | null>(null);
-  const [shareCommande, setShareCommande] = useState<CommandeResultat | null>(
-    null,
-  );
+  const [sharing, setSharing] = useState<string | null>(null);
+  const [shareData, setShareData] = useState<{
+    patient: Patient;
+    lien: string;
+    nb: number;
+  } | null>(null);
 
   const peutValider = user?.role === "medecin" || user?.role === "admin";
 
@@ -154,6 +170,43 @@ export default function ResultatsPage() {
     } finally {
       setBusy(null);
       setConfirmCmd(null);
+    }
+  };
+
+  // Publie un snapshot combiné (1 token = tous les examens validés) puis
+  // ouvre le partage avec ce lien unique.
+  const ouvrirPartageCommande = async (cmd: CommandeResultat) => {
+    const patient = patientsMap.get(cmd.patientId);
+    const valides = cmd.resultats.filter((r) => r.valideParMedecin && r.token);
+    if (!patient || valides.length === 0) return;
+    setSharing(cmd.key);
+    try {
+      const token = await commandeToken(cmd.key);
+      await publierCommande(token, {
+        patientPrenom: patient.prenom,
+        patientNom: patient.nom,
+        dateNaissance: patient.dateNaissance,
+        sexe: patient.sexe,
+        telephone: patient.telephone,
+        groupeSanguin: patient.groupeSanguin,
+        examens: valides.map((r) => ({
+          examenNom: examenNom(r.examenId),
+          valeurs: r.valeurs,
+          observations: r.observations,
+          ref: r.id,
+        })),
+      });
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      setShareData({
+        patient,
+        lien: `${origin}/patient-portal/${token}`,
+        nb: valides.length,
+      });
+    } catch (err) {
+      logError(err, { scope: "resultats", action: "partageCommande" });
+    } finally {
+      setSharing(null);
     }
   };
 
@@ -321,13 +374,15 @@ export default function ResultatsPage() {
                     )}
                     {cmd.resultats.some((r) => r.valideParMedecin && r.token) && (
                       <button
-                        onClick={() => setShareCommande(cmd)}
+                        onClick={() => ouvrirPartageCommande(cmd)}
+                        disabled={sharing === cmd.key}
                         title="Partager les résultats au patient"
                         aria-label="Partager les résultats de la commande"
                         className="px-3 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700
-                          text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                          text-white text-xs font-semibold transition-colors whitespace-nowrap
+                          disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        📤 Partager
+                        {sharing === cmd.key ? "Préparation..." : "📤 Partager"}
                       </button>
                     )}
                   </div>
@@ -488,13 +543,13 @@ export default function ResultatsPage() {
         </div>
       )}
 
-      {/* Partage groupé : tous les résultats validés de la commande */}
-      {shareCommande && (
+      {/* Partage groupé : un seul lien pour tous les résultats validés */}
+      {shareData && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="w-full max-w-lg">
             <div className="flex justify-end mb-2">
               <button
-                onClick={() => setShareCommande(null)}
+                onClick={() => setShareData(null)}
                 aria-label="Fermer"
                 className="w-9 h-9 flex items-center justify-center rounded-xl
                   bg-white text-slate-500 hover:bg-slate-100 transition-colors shadow"
@@ -502,25 +557,11 @@ export default function ResultatsPage() {
                 ✕
               </button>
             </div>
-            {(() => {
-              const patient = patientsMap.get(shareCommande.patientId);
-              if (!patient) {
-                return (
-                  <div className="bg-white rounded-2xl p-6 text-center text-sm text-slate-500">
-                    Patient introuvable.
-                  </div>
-                );
-              }
-              const origin =
-                typeof window !== "undefined" ? window.location.origin : "";
-              const items = shareCommande.resultats
-                .filter((r) => r.valideParMedecin && r.token)
-                .map((r) => ({
-                  examenNom: examenNom(r.examenId),
-                  lien: `${origin}/patient-portal/${r.token}`,
-                }));
-              return <CommandeNotify patient={patient} resultats={items} />;
-            })()}
+            <CommandeNotify
+              patient={shareData.patient}
+              lien={shareData.lien}
+              nb={shareData.nb}
+            />
           </div>
         </div>
       )}

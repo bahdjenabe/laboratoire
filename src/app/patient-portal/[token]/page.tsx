@@ -83,7 +83,29 @@ export default function PatientPortalPage() {
     );
   }
 
-  const valeurs = Object.entries(resultat.valeurs ?? {});
+  // Vue unifiée : un résultat unique = une seule « section » ; une commande =
+  // plusieurs examens. Chaque section peut être téléchargée en PDF.
+  const sections =
+    resultat.examens && resultat.examens.length > 0
+      ? resultat.examens
+      : [
+          {
+            examenNom: resultat.examenNom,
+            valeurs: resultat.valeurs,
+            observations: resultat.observations,
+            ref: resultat.ref,
+          },
+        ];
+
+  const telechargerSection = (s: (typeof sections)[number]) =>
+    generatePublicReport({
+      ...resultat,
+      examenNom: s.examenNom,
+      valeurs: s.valeurs,
+      observations: s.observations,
+      ref: s.ref,
+      examens: undefined,
+    });
 
   return (
     <main className="min-h-screen bg-slate-100 py-8 px-4 print:bg-white print:py-0">
@@ -109,7 +131,7 @@ export default function PatientPortalPage() {
           </div>
 
           <div className="p-8 space-y-6">
-            {/* Infos */}
+            {/* Infos patient */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">
@@ -123,81 +145,95 @@ export default function PatientPortalPage() {
               </div>
               <div>
                 <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">
-                  Analyse
-                </p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {resultat.examenNom ?? "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">
                   Validé le
                 </p>
                 <p className="text-sm text-slate-700">
                   {formatDate(resultat.valideAt)}
                 </p>
               </div>
-            </div>
-
-            {/* Tableau des valeurs */}
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 mb-3">
-                Résultats
-              </h2>
-              <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                <div className="grid grid-cols-2 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  <span>Paramètre</span>
-                  <span>Valeur</span>
-                </div>
-                {valeurs.length === 0 ? (
-                  <p className="px-4 py-4 text-sm text-slate-400">
-                    Aucune valeur.
-                  </p>
-                ) : (
-                  valeurs.map(([param, valeur], i) => (
-                    <div
-                      key={param}
-                      className={`grid grid-cols-2 px-4 py-3 text-sm ${
-                        i % 2 === 1 ? "bg-slate-50/50" : ""
-                      }`}
-                    >
-                      <span className="text-slate-600">{param}</span>
-                      <span className="font-semibold text-slate-900">
-                        {valeur}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Observations */}
-            {resultat.observations && (
               <div>
-                <h2 className="text-sm font-bold text-slate-900 mb-2">
-                  Observations
-                </h2>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-2xl p-4">
-                  {resultat.observations}
+                <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">
+                  {sections.length > 1 ? "Examens" : "Analyse"}
+                </p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {sections.length > 1
+                    ? `${sections.length} examens`
+                    : (sections[0].examenNom ?? "—")}
                 </p>
               </div>
-            )}
+            </div>
 
-            {/* Actions */}
-            <div className="pt-2 print:hidden flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => generatePublicReport(resultat)}
-                className="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700
-                  text-white font-semibold text-sm transition-colors"
-              >
-                ⬇️ Télécharger le rapport (PDF)
-              </button>
+            {/* Une section par examen */}
+            {sections.map((s, idx) => {
+              const valeurs = Object.entries(s.valeurs ?? {});
+              return (
+                <div
+                  key={s.ref ?? idx}
+                  className="border-t border-slate-100 pt-5 first:border-t-0 first:pt-0"
+                >
+                  {sections.length > 1 && (
+                    <h2 className="text-base font-bold text-slate-900 mb-3">
+                      {s.examenNom ?? "Analyse"}
+                    </h2>
+                  )}
+                  <div className="rounded-2xl border border-slate-100 overflow-hidden">
+                    <div className="grid grid-cols-2 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      <span>Paramètre</span>
+                      <span>Valeur</span>
+                    </div>
+                    {valeurs.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-slate-400">
+                        Aucune valeur.
+                      </p>
+                    ) : (
+                      valeurs.map(([param, valeur], i) => (
+                        <div
+                          key={param}
+                          className={`grid grid-cols-2 px-4 py-3 text-sm ${
+                            i % 2 === 1 ? "bg-slate-50/50" : ""
+                          }`}
+                        >
+                          <span className="text-slate-600">{param}</span>
+                          <span className="font-semibold text-slate-900">
+                            {valeur}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {s.observations && (
+                    <div className="mt-3">
+                      <h3 className="text-sm font-bold text-slate-900 mb-2">
+                        Observations
+                      </h3>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-2xl p-4">
+                        {s.observations}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-3 print:hidden">
+                    <button
+                      onClick={() => telechargerSection(s)}
+                      className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50
+                        text-slate-700 font-semibold text-sm transition-colors"
+                    >
+                      ⬇️ Télécharger {sections.length > 1 ? "cet examen" : "le rapport"} (PDF)
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Impression de la page complète */}
+            <div className="pt-2 print:hidden">
               <button
                 onClick={() => window.print()}
-                className="flex-1 h-12 rounded-xl border border-slate-200 hover:bg-slate-50
+                className="w-full h-12 rounded-xl border border-slate-200 hover:bg-slate-50
                   text-slate-700 font-semibold text-sm transition-colors"
               >
-                🖨️ Imprimer
+                🖨️ Imprimer la page
               </button>
             </div>
           </div>

@@ -28,17 +28,15 @@ export function buildMessage(
   );
 }
 
-// Message groupé : tous les résultats validés d'une commande en un envoi.
-export function buildMessageGroupe(
+// Message « commande » : un seul lien regroupant tous les examens validés.
+export function buildMessageCommande(
   prenom: string,
-  resultats: { examenNom: string; lien: string }[],
+  nb: number,
+  lien: string,
 ): string {
-  const lignes = resultats
-    .map((r) => `• ${r.examenNom} : ${r.lien}`)
-    .join("\n");
   return (
-    `Bonjour ${prenom}, vos résultats d'analyse sont disponibles. ` +
-    `Consultez-les en ligne en toute sécurité :\n${lignes}`
+    `Bonjour ${prenom}, vos ${nb} résultats d'analyse sont disponibles. ` +
+    `Consultez-les en ligne en toute sécurité : ${lien}`
   );
 }
 
