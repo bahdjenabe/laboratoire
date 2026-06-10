@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Role } from '@/types';
+import { SESSION_COOKIE, verifySession } from '@/lib/session';
 
 // Routes accessibles sans authentification
 const PUBLIC_PATHS = ['/login'];
@@ -19,7 +20,7 @@ const ROLE_DENIED_PATHS: Partial<Record<Role, string[]>> = {
   technicien: ['/dashboard/resultats'],
 };
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Laisser passer les routes publiques
@@ -27,9 +28,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Lire le cookie de session posé par AuthContext après login
-  //    Format attendu : JSON.stringify({ uid, role })
-  const sessionCookie = request.cookies.get('session')?.value;
+  // 2. Lire le cookie de session (JWT signé posé par /api/session)
+  const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
 
   if (!sessionCookie) {
     // Pas de session → redirection vers login
@@ -38,19 +38,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 3. Décoder la session
-  let session: { uid: string; role: Role } | null = null;
-  try {
-    session = JSON.parse(decodeURIComponent(sessionCookie));
-  } catch {
-    // Cookie corrompu → on l'efface et on redirige
-    const response = NextResponse.redirect(new URL('/login', request.url));
-    response.cookies.delete('session');
-    return response;
-  }
+  // 3. Vérifier la signature et l'expiration du cookie (non falsifiable)
+  const session = await verifySession(sessionCookie);
 
   if (!session?.role) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    // Cookie invalide/expiré/falsifié → on l'efface et on redirige
+    const response = NextResponse.redirect(new URL('/login', request.url));
+    response.cookies.delete(SESSION_COOKIE);
+    return response;
   }
 
   // 4. Vérifier que le rôle a accès à la route demandée

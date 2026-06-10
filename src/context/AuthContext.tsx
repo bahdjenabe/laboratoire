@@ -29,16 +29,25 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const USER_CACHE_KEY = "labmedical_user";
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 jours
 
-// ✅ Cookie lu par le middleware (src/middleware.ts) pour protéger les routes.
-function setSessionCookie(uid: string, role: string) {
-  const value = encodeURIComponent(JSON.stringify({ uid, role }));
-  document.cookie = `session=${value}; path=/; max-age=${SESSION_MAX_AGE}; SameSite=Lax`;
+// ✅ Cookie de session signé httpOnly, posé/effacé par la route /api/session
+// (le client ne peut pas le forger : le rôle est dérivé du jeton Firebase
+// vérifié côté serveur). Lu par le middleware pour protéger les routes.
+async function syncSessionCookie(firebaseUser: FirebaseUser): Promise<void> {
+  const idToken = await firebaseUser.getIdToken();
+  await fetch("/api/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
 }
 
-function clearSessionCookie() {
-  document.cookie = "session=; path=/; max-age=0; SameSite=Lax";
+async function clearSessionCookie(): Promise<void> {
+  try {
+    await fetch("/api/session", { method: "DELETE" });
+  } catch {
+    // Réseau indisponible : le cookie expirera de lui-même (7 jours).
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -75,13 +84,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 ...userDoc.data(),
               } as User;
 
-              // ✅ Sauvegarder dans localStorage + cookie de session
+              // ✅ Poser le cookie AVANT d'exposer l'utilisateur : la
+              // redirection (login) et le middleware le verront déjà posé.
+              await syncSessionCookie(firebaseUser);
               localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userData));
-              setSessionCookie(userData.uid, userData.role);
               setUser(userData);
             } else {
               localStorage.removeItem(USER_CACHE_KEY);
-              clearSessionCookie();
+              await clearSessionCookie();
               setUser(null);
             }
           } catch (error) {
@@ -90,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else {
           localStorage.removeItem(USER_CACHE_KEY);
-          clearSessionCookie();
+          await clearSessionCookie();
           setUser(null);
         }
         setLoading(false);
@@ -101,12 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<void> => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    // Pose le cookie immédiatement (onAuthStateChanged le refera, idempotent).
+    await syncSessionCookie(cred.user);
   };
 
   const logout = async (): Promise<void> => {
     localStorage.removeItem(USER_CACHE_KEY);
-    clearSessionCookie();
+    await clearSessionCookie();
     setUser(null);
     await signOut(auth);
   };
