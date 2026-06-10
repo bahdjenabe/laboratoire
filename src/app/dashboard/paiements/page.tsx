@@ -14,7 +14,13 @@ import Pagination from "@/components/Pagination";
 import { usePagination } from "@/hooks/usePagination";
 import { useSelection } from "@/hooks/useSelection";
 import BulkDeleteBar from "@/components/BulkDeleteBar";
-import type { Examen, Paiement } from "@/types";
+import {
+  grouperExamens,
+  grouperPaiements,
+  type CommandePaiements,
+  type StatutPaiementCommande,
+} from "@/lib/commandes";
+import type { Paiement } from "@/types";
 
 const MODES = ["Espèces", "Mobile Money", "Carte bancaire", "Virement"];
 
@@ -63,22 +69,13 @@ const formatDate = (value: unknown): string => {
     : "—";
 };
 
-// Statut global d'une commande de paiements.
-type StatutCommande = "paye" | "non_paye" | "partiel";
-const STATUT_CMD: Record<StatutCommande, { label: string; cls: string }> = {
-  paye: { label: "✓ Payé", cls: "bg-emerald-100 text-emerald-700" },
-  non_paye: { label: "Non payé", cls: "bg-red-100 text-red-700" },
-  partiel: { label: "Partiel", cls: "bg-amber-100 text-amber-700" },
-};
-
-interface CommandePaiement {
-  key: string;
-  patientId: string;
-  createdAt: unknown;
-  paiements: Paiement[];
-  montantTotal: number;
-  statut: StatutCommande;
-}
+// Affichage du statut global d'une commande de paiements.
+const STATUT_CMD: Record<StatutPaiementCommande, { label: string; cls: string }> =
+  {
+    paye: { label: "✓ Payé", cls: "bg-emerald-100 text-emerald-700" },
+    non_paye: { label: "Non payé", cls: "bg-red-100 text-red-700" },
+    partiel: { label: "Partiel", cls: "bg-amber-100 text-amber-700" },
+  };
 
 export default function PaiementsPage() {
   const { paiements, loading, addPaiements, editPaiement, removePaiement } =
@@ -90,7 +87,7 @@ export default function PaiementsPage() {
   const [filtre, setFiltre] = useState<"tous" | "paye" | "non_paye">("tous");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [showConfirm, setShowConfirm] = useState<CommandePaiement | null>(null);
+  const [showConfirm, setShowConfirm] = useState<CommandePaiements | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -106,7 +103,7 @@ export default function PaiementsPage() {
 
   // Édition d'une commande (mode / détail / référence / statut appliqués à
   // tous ses paiements).
-  const [editing, setEditing] = useState<CommandePaiement | null>(null);
+  const [editing, setEditing] = useState<CommandePaiements | null>(null);
   const [editMode, setEditMode] = useState(MODES[0]);
   const [editDetail, setEditDetail] = useState("");
   const [editReference, setEditReference] = useState("");
@@ -130,22 +127,10 @@ export default function PaiementsPage() {
   );
 
   // Commandes à facturer : examens non encore payés, regroupés par commande.
-  const commandesAFacturer = useMemo<CommandeAFacturer[]>(() => {
-    const aFacturer = examens.filter((e) => !examensFactures.has(e.id));
-    const map = new Map<string, Examen[]>();
-    for (const e of aFacturer) {
-      const key = e.commandeId ?? e.id;
-      const arr = map.get(key);
-      if (arr) arr.push(e);
-      else map.set(key, [e]);
-    }
-    return [...map.entries()].map(([key, exams]) => ({
-      key,
-      patientId: exams[0].patientId,
-      exams,
-      total: exams.reduce((s, e) => s + (e.prix || 0), 0),
-    }));
-  }, [examens, examensFactures]);
+  const commandesAFacturer = useMemo<CommandeAFacturer[]>(
+    () => grouperExamens(examens.filter((e) => !examensFactures.has(e.id))),
+    [examens, examensFactures],
+  );
 
   const selectedCommande = commandesAFacturer.find((c) => c.key === selectedKey);
 
@@ -175,34 +160,7 @@ export default function PaiementsPage() {
   });
 
   // Regroupement par commande (paiements encaissés ensemble).
-  const commandes = useMemo<CommandePaiement[]>(() => {
-    const map = new Map<string, Paiement[]>();
-    for (const p of filtered) {
-      const key = p.commandeId ?? p.examenId;
-      const arr = map.get(key);
-      if (arr) arr.push(p);
-      else map.set(key, [p]);
-    }
-    return [...map.entries()].map(([key, paies]) => {
-      const montantTotal = paies.reduce((s, p) => s + (p.montant || 0), 0);
-      const nbPaye = paies.filter((p) => p.statut === "paye").length;
-      const statut: StatutCommande =
-        nbPaye === paies.length
-          ? "paye"
-          : nbPaye === 0
-            ? "non_paye"
-            : "partiel";
-      return {
-        key,
-        patientId: paies[0].patientId,
-        createdAt: paies[0].createdAt,
-        paiements: paies,
-        montantTotal,
-        statut,
-      };
-    });
-    // filtered se reconstruit à chaque rendu : dépend de paiements + filtres.
-  }, [filtered]);
+  const commandes = useMemo(() => grouperPaiements(filtered), [filtered]);
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
     usePagination(commandes, 6, `${search}|${filtre}`);
@@ -279,7 +237,7 @@ export default function PaiementsPage() {
   };
 
   // Bascule le statut de toute la commande (payé ⇄ non payé).
-  const toggleStatutCommande = async (cmd: CommandePaiement) => {
+  const toggleStatutCommande = async (cmd: CommandePaiements) => {
     const cible = cmd.statut === "paye" ? "non_paye" : "paye";
     setBusy(cmd.key);
     try {
@@ -304,7 +262,7 @@ export default function PaiementsPage() {
   };
 
   // Reçu unique pour toute la commande (toutes ses lignes d'examens).
-  const handleRecu = async (cmd: CommandePaiement) => {
+  const handleRecu = async (cmd: CommandePaiements) => {
     setBusy(cmd.key);
     try {
       const patient = await getPatient(cmd.patientId);
@@ -334,7 +292,7 @@ export default function PaiementsPage() {
     }
   };
 
-  const openEdit = (cmd: CommandePaiement) => {
+  const openEdit = (cmd: CommandePaiements) => {
     const ref = cmd.paiements[0];
     setEditing(cmd);
     setEditMode(ref.modePaiement ?? MODES[0]);

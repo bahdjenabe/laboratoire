@@ -16,7 +16,8 @@ import { usePagination } from "@/hooks/usePagination";
 import { useSelection } from "@/hooks/useSelection";
 import BulkDeleteBar from "@/components/BulkDeleteBar";
 import { examenSchema, type ExamenInput } from "@/lib/validations";
-import type { Examen, StatutExamen } from "@/types";
+import { grouperExamens } from "@/lib/commandes";
+import type { StatutExamen } from "@/types";
 
 const STATUT_CONFIG: Record<StatutExamen, { label: string; cls: string }> = {
   en_attente: { label: "En attente", cls: "bg-slate-100 text-slate-600" },
@@ -55,14 +56,6 @@ const formatDate = (value: unknown): string => {
       })
     : "—";
 };
-
-// Statut « global » d'une commande = le moins avancé de ses examens.
-const STATUT_ORDRE: StatutExamen[] = [
-  "en_attente",
-  "en_cours",
-  "termine",
-  "valide",
-];
 
 export default function ExamensPage() {
   const { examens, loading, addExamens, removeExamen } = useExamens();
@@ -147,25 +140,7 @@ export default function ExamensPage() {
   // Regroupement par commande (examens saisis ensemble pour un patient).
   // Les examens d'avant la fonctionnalité (sans commandeId) forment chacun
   // leur propre groupe. L'ordre (createdAt desc) est préservé via la Map.
-  const commandes = useMemo(() => {
-    const map = new Map<string, Examen[]>();
-    for (const e of filtered) {
-      const key = e.commandeId ?? e.id;
-      const arr = map.get(key);
-      if (arr) arr.push(e);
-      else map.set(key, [e]);
-    }
-    return [...map.entries()].map(([key, exams]) => ({
-      key,
-      patientId: exams[0].patientId,
-      createdAt: exams[0].createdAt,
-      exams,
-      total: exams.reduce((s, e) => s + (e.prix || 0), 0),
-      statut: STATUT_ORDRE[
-        Math.min(...exams.map((e) => STATUT_ORDRE.indexOf(e.statut)))
-      ],
-    }));
-  }, [filtered]);
+  const commandes = useMemo(() => grouperExamens(filtered), [filtered]);
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
     usePagination(commandes, 6, `${search}|${filtre}`);
