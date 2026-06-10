@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { subscribeStaff, updateUser, deleteUser } from "@/lib/firestore/users";
 import { createStaff } from "@/lib/auth/createStaff";
+import { logError } from "@/lib/logError";
 import type { Role, User } from "@/types";
 
 interface NewStaff {
@@ -25,7 +26,7 @@ export function usePersonnel() {
       (err) => {
         setError("Erreur lors du chargement du personnel");
         setLoading(false);
-        console.error(err);
+        logError(err, { scope: "personnel" });
       },
     );
     return () => unsub();

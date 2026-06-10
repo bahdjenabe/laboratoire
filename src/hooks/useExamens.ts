@@ -7,6 +7,7 @@ import {
   updateStatutExamen,
   deleteExamen,
 } from '@/lib/firestore/examens';
+import { logError } from '@/lib/logError';
 import type { Examen, StatutExamen } from '@/types';
 
 export function useExamens() {
@@ -25,7 +26,7 @@ export function useExamens() {
       (err) => {
         setError('Erreur lors du chargement des examens');
         setLoading(false);
-        console.error(err);
+        logError(err, { scope: 'examens' });
       },
     );
     return () => unsub();

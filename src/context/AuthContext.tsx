@@ -17,6 +17,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { logError } from "@/lib/logError";
 import type { User } from "@/types";
 
 interface AuthContextType {
@@ -95,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(null);
             }
           } catch (error) {
-            console.error("Erreur Firestore:", error);
+            logError(error, { scope: "auth", step: "onAuthStateChanged" });
             // ✅ Garder le cache si Firestore échoue (réseau lent)
           }
         } else {

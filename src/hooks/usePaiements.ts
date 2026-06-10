@@ -6,6 +6,7 @@ import {
   updatePaiement,
   deletePaiement,
 } from '@/lib/firestore/paiements';
+import { logError } from '@/lib/logError';
 import type { Paiement } from '@/types';
 
 export function usePaiements() {
@@ -22,7 +23,7 @@ export function usePaiements() {
       (err) => {
         setError('Erreur lors du chargement des paiements');
         setLoading(false);
-        console.error(err);
+        logError(err, { scope: 'paiements' });
       },
     );
     return () => unsub();

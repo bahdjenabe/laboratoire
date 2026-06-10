@@ -5,6 +5,7 @@ import {
   updateCatalogueExamen,
   deleteCatalogueExamen,
 } from '@/lib/firestore/catalogue';
+import { logError } from '@/lib/logError';
 import type { CatalogueExamen } from '@/types';
 
 export function useCatalogue() {
@@ -21,7 +22,7 @@ export function useCatalogue() {
       (err) => {
         setError('Erreur lors du chargement du catalogue');
         setLoading(false);
-        console.error(err);
+        logError(err, { scope: 'catalogue' });
       },
     );
     return () => unsub();

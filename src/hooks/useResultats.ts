@@ -6,6 +6,7 @@ import {
   validerResultat,
   deleteResultat,
 } from '@/lib/firestore/resultats';
+import { logError } from '@/lib/logError';
 import type { Resultat } from '@/types';
 
 export function useResultats() {
@@ -22,7 +23,7 @@ export function useResultats() {
       (err) => {
         setError('Erreur lors du chargement des résultats');
         setLoading(false);
-        console.error(err);
+        logError(err, { scope: 'resultats' });
       },
     );
     return () => unsub();

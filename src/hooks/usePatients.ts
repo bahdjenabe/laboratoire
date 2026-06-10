@@ -8,6 +8,7 @@ import {
   restorePatient,
   assignMissingNumeros,
 } from '@/lib/firestore/patients';
+import { logError } from '@/lib/logError';
 import type { Patient } from '@/types';
 
 export function usePatients() {
@@ -24,7 +25,7 @@ export function usePatients() {
       (err) => {
         setError('Erreur lors du chargement des patients');
         setLoading(false);
-        console.error(err);
+        logError(err, { scope: 'patients' });
       },
     );
     return () => unsub();
