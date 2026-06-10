@@ -11,6 +11,7 @@ import { validerResultat } from "@/lib/firestore/resultats";
 import { updateStatutExamen } from "@/lib/firestore/examens";
 import { logError } from "@/lib/logError";
 import Pagination from "@/components/Pagination";
+import PatientNotify from "@/components/PatientNotify";
 import type { Resultat } from "@/types";
 
 const FILTRES: { key: "tous" | "valide" | "attente"; label: string }[] = [
@@ -58,6 +59,7 @@ export default function ResultatsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmCmd, setConfirmCmd] = useState<CommandeResultat | null>(null);
+  const [shareResultat, setShareResultat] = useState<Resultat | null>(null);
 
   const peutValider = user?.role === "medecin" || user?.role === "admin";
 
@@ -346,7 +348,22 @@ export default function ResultatsPage() {
                             {nbValeurs} paramètre{nbValeurs > 1 ? "s" : ""} • Voir
                             le détail →
                           </div>
-                          <div className="col-span-4 flex justify-end">
+                          <div
+                            className="col-span-4 flex justify-end items-center gap-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {r.valideParMedecin && r.token && (
+                              <button
+                                onClick={() => setShareResultat(r)}
+                                title="Partager le résultat au patient"
+                                aria-label={`Partager le résultat ${examenNom(r.examenId)}`}
+                                className="px-2.5 h-7 rounded-lg bg-slate-100 hover:bg-emerald-100
+                                  hover:text-emerald-700 text-slate-600 text-xs font-semibold
+                                  transition-colors whitespace-nowrap"
+                              >
+                                📤 Partager
+                              </button>
+                            )}
                             {r.valideParMedecin ? (
                               <span className="inline-flex text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">
                                 ✓ Validé
@@ -413,6 +430,45 @@ export default function ResultatsPage() {
                 {busy ? "Validation..." : "Valider"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Partage d'un résultat validé au patient */}
+      {shareResultat && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-lg">
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => setShareResultat(null)}
+                aria-label="Fermer"
+                className="w-9 h-9 flex items-center justify-center rounded-xl
+                  bg-white text-slate-500 hover:bg-slate-100 transition-colors shadow"
+              >
+                ✕
+              </button>
+            </div>
+            {(() => {
+              const patient = patientsMap.get(shareResultat.patientId);
+              if (!patient) {
+                return (
+                  <div className="bg-white rounded-2xl p-6 text-center text-sm text-slate-500">
+                    Patient introuvable.
+                  </div>
+                );
+              }
+              const lien =
+                typeof window !== "undefined"
+                  ? `${window.location.origin}/patient-portal/${shareResultat.token}`
+                  : `/patient-portal/${shareResultat.token}`;
+              return (
+                <PatientNotify
+                  patient={patient}
+                  examenNom={examenNom(shareResultat.examenId)}
+                  lien={lien}
+                />
+              );
+            })()}
           </div>
         </div>
       )}
