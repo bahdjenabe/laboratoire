@@ -7,13 +7,41 @@ import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
 import { usePagination } from "@/hooks/usePagination";
+import { validerResultat } from "@/lib/firestore/resultats";
+import { updateStatutExamen } from "@/lib/firestore/examens";
+import { logError } from "@/lib/logError";
 import Pagination from "@/components/Pagination";
+import type { Resultat } from "@/types";
 
 const FILTRES: { key: "tous" | "valide" | "attente"; label: string }[] = [
   { key: "tous", label: "Tous" },
   { key: "attente", label: "À valider" },
   { key: "valide", label: "Validés" },
 ];
+
+type StatutCmd = "valide" | "attente" | "partiel";
+const STATUT_CMD: Record<StatutCmd, { label: string; cls: string }> = {
+  valide: { label: "✓ Validé", cls: "bg-emerald-100 text-emerald-700" },
+  attente: { label: "À valider", cls: "bg-amber-100 text-amber-700" },
+  partiel: { label: "Partiel", cls: "bg-blue-100 text-blue-700" },
+};
+
+interface CommandeResultat {
+  key: string;
+  patientId: string;
+  resultats: Resultat[];
+  nbAValider: number;
+  statut: StatutCmd;
+}
+
+// Active une ligne au clavier (Entrée / Espace) comme un bouton.
+const onActivate =
+  (action: () => void) => (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      action();
+    }
+  };
 
 export default function ResultatsPage() {
   const { resultats, loading } = useResultats();
@@ -27,6 +55,11 @@ export default function ResultatsPage() {
     user?.role === "medecin" ? "attente" : "tous",
   );
   const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirmCmd, setConfirmCmd] = useState<CommandeResultat | null>(null);
+
+  const peutValider = user?.role === "medecin" || user?.role === "admin";
 
   const examensMap = useMemo(
     () => new Map(examens.map((e) => [e.id, e])),
@@ -55,8 +88,68 @@ export default function ResultatsPage() {
     );
   });
 
+  // Regroupement par commande : un résultat est rattaché à sa commande via
+  // le commandeId de son examen (repli sur l'examenId).
+  const commandes = useMemo<CommandeResultat[]>(() => {
+    const map = new Map<string, Resultat[]>();
+    for (const r of filtered) {
+      const key = examensMap.get(r.examenId)?.commandeId ?? r.examenId;
+      const arr = map.get(key);
+      if (arr) arr.push(r);
+      else map.set(key, [r]);
+    }
+    return [...map.entries()].map(([key, res]) => {
+      const nbAValider = res.filter((r) => !r.valideParMedecin).length;
+      const statut: StatutCmd =
+        nbAValider === 0
+          ? "valide"
+          : nbAValider === res.length
+            ? "attente"
+            : "partiel";
+      return { key, patientId: res[0].patientId, resultats: res, nbAValider, statut };
+    });
+  }, [filtered, examensMap]);
+
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 5, `${search}|${filtre}`);
+    usePagination(commandes, 6, `${search}|${filtre}`);
+
+  const toggleExpand = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // Valide en une fois tous les résultats non encore validés d'une commande.
+  const validerCommande = async (cmd: CommandeResultat) => {
+    setBusy(cmd.key);
+    try {
+      for (const r of cmd.resultats) {
+        if (r.valideParMedecin) continue;
+        const examen = examensMap.get(r.examenId);
+        const patient = patientsMap.get(r.patientId);
+        await validerResultat(r.id, {
+          examenNom: examen?.nomExamen,
+          patientPrenom: patient?.prenom,
+          patientNom: patient?.nom,
+          dateNaissance: patient?.dateNaissance,
+          sexe: patient?.sexe,
+          telephone: patient?.telephone,
+          groupeSanguin: patient?.groupeSanguin,
+          valeurs: r.valeurs,
+          observations: r.observations,
+        });
+        // Aligne le statut de l'examen sur la validation (comme la fiche examen).
+        await updateStatutExamen(r.examenId, "valide");
+      }
+    } catch (err) {
+      logError(err, { scope: "resultats", action: "validerCommande" });
+    } finally {
+      setBusy(null);
+      setConfirmCmd(null);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -110,10 +203,10 @@ export default function ResultatsPage() {
           className="grid grid-cols-12 px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
-          <div className="col-span-4">Examen</div>
           <div className="col-span-4">Patient</div>
-          <div className="col-span-2">Valeurs</div>
-          <div className="col-span-2 text-right">Statut</div>
+          <div className="col-span-4">Examens</div>
+          <div className="col-span-2">Statut</div>
+          <div className="col-span-2 text-right">Action</div>
         </div>
 
         {loading ? (
@@ -125,14 +218,14 @@ export default function ResultatsPage() {
               >
                 <div className="col-span-4 h-3 w-40 bg-slate-200 rounded animate-pulse" />
                 <div className="col-span-4 h-3 w-28 bg-slate-200 rounded animate-pulse" />
-                <div className="col-span-2 h-3 w-10 bg-slate-200 rounded animate-pulse" />
+                <div className="col-span-2 h-5 w-16 bg-slate-200 rounded-full animate-pulse" />
                 <div className="col-span-2 flex justify-end">
-                  <div className="h-5 w-16 bg-slate-200 rounded-full animate-pulse" />
+                  <div className="h-8 w-24 bg-slate-200 rounded-lg animate-pulse" />
                 </div>
               </div>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : commandes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <span className="text-5xl mb-4">📋</span>
             <p className="text-slate-600 font-semibold text-base mb-1">
@@ -147,47 +240,128 @@ export default function ResultatsPage() {
             </p>
           </div>
         ) : (
-          pageItems.map((resultat, idx) => {
-            const nbValeurs = Object.keys(resultat.valeurs ?? {}).length;
+          pageItems.map((cmd, idx) => {
+            const conf = STATUT_CMD[cmd.statut];
+            const isOpen = expanded.has(cmd.key);
+            const resume = cmd.resultats
+              .map((r) => examenNom(r.examenId))
+              .join(", ");
             return (
               <div
-                key={resultat.id}
-                onClick={() =>
-                  router.push(`/dashboard/examens/${resultat.examenId}`)
+                key={cmd.key}
+                className={
+                  idx < pageItems.length - 1 ? "border-b border-slate-50" : ""
                 }
-                className={`grid grid-cols-12 px-5 py-4 items-center
-                  hover:bg-slate-50 transition-colors cursor-pointer
-                  ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
               >
-                <div className="col-span-4 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base flex-shrink-0">
-                    📋
+                {/* Ligne commande */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  aria-label={`Résultats de ${patientNom(cmd.patientId)}, ${cmd.resultats.length} examen(s)`}
+                  onClick={() => toggleExpand(cmd.key)}
+                  onKeyDown={onActivate(() => toggleExpand(cmd.key))}
+                  className="grid grid-cols-12 px-5 py-4 items-center
+                    hover:bg-slate-50 transition-colors cursor-pointer
+                    focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
+                >
+                  <div className="col-span-4 flex items-center gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="text-slate-400 text-xs w-3 flex-shrink-0"
+                    >
+                      {isOpen ? "▾" : "▸"}
+                    </span>
+                    <div
+                      aria-hidden="true"
+                      className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-base flex-shrink-0"
+                    >
+                      📋
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {patientNom(cmd.patientId)}
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-900 truncate">
-                    {examenNom(resultat.examenId)}
-                  </p>
-                </div>
-                <div className="col-span-4">
-                  <p className="text-sm text-slate-700 truncate">
-                    {patientNom(resultat.patientId)}
-                  </p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-slate-500">
-                    {nbValeurs} paramètre{nbValeurs > 1 ? "s" : ""}
-                  </p>
-                </div>
-                <div className="col-span-2 flex justify-end">
-                  {resultat.valideParMedecin ? (
-                    <span className="inline-flex text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-100 text-emerald-700">
-                      ✓ Validé
+                  <div className="col-span-4 min-w-0">
+                    <p className="text-sm text-slate-700">
+                      {cmd.resultats.length} examen
+                      {cmd.resultats.length > 1 ? "s" : ""}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">{resume}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span
+                      className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium ${conf.cls}`}
+                    >
+                      {conf.label}
                     </span>
-                  ) : (
-                    <span className="inline-flex text-xs px-2.5 py-1 rounded-full font-medium bg-amber-100 text-amber-700">
-                      À valider
-                    </span>
-                  )}
+                  </div>
+                  <div
+                    className="col-span-2 flex justify-end"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {peutValider && cmd.nbAValider > 0 && (
+                      <button
+                        onClick={() => setConfirmCmd(cmd)}
+                        disabled={busy === cmd.key}
+                        className="px-3 h-9 rounded-lg bg-blue-600 hover:bg-blue-700
+                          text-white text-xs font-semibold transition-colors
+                          disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {busy === cmd.key
+                          ? "Validation..."
+                          : `✔ Valider (${cmd.nbAValider})`}
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Résultats de la commande (dépliés) */}
+                {isOpen && (
+                  <div className="bg-slate-50/60">
+                    {cmd.resultats.map((r) => {
+                      const nbValeurs = Object.keys(r.valeurs ?? {}).length;
+                      return (
+                        <div
+                          key={r.id}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Ouvrir l'examen ${examenNom(r.examenId)}`}
+                          onClick={() =>
+                            router.push(`/dashboard/examens/${r.examenId}`)
+                          }
+                          onKeyDown={onActivate(() =>
+                            router.push(`/dashboard/examens/${r.examenId}`),
+                          )}
+                          className="grid grid-cols-12 px-5 py-3 items-center
+                            border-t border-slate-100 hover:bg-white transition-colors cursor-pointer
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
+                        >
+                          <div className="col-span-4 flex items-center gap-3 pl-7">
+                            <p className="text-sm text-slate-700 truncate">
+                              {examenNom(r.examenId)}
+                            </p>
+                          </div>
+                          <div className="col-span-4 text-xs text-slate-400">
+                            {nbValeurs} paramètre{nbValeurs > 1 ? "s" : ""} • Voir
+                            le détail →
+                          </div>
+                          <div className="col-span-4 flex justify-end">
+                            {r.valideParMedecin ? (
+                              <span className="inline-flex text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">
+                                ✓ Validé
+                              </span>
+                            ) : (
+                              <span className="inline-flex text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+                                À valider
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })
@@ -202,8 +376,45 @@ export default function ResultatsPage() {
           to={to}
           total={total}
           onChange={setPage}
-          unitLabel="résultats"
+          unitLabel="commandes"
         />
+      )}
+
+      {/* Confirmation de validation groupée */}
+      {confirmCmd && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+              ✔
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+              Valider {confirmCmd.nbAValider} résultat
+              {confirmCmd.nbAValider > 1 ? "s" : ""} ?
+            </h3>
+            <p className="text-sm text-slate-500 text-center mb-6">
+              Les résultats de {patientNom(confirmCmd.patientId)} seront validés
+              et rendus consultables par le patient. Action définitive.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmCmd(null)}
+                className="flex-1 h-11 rounded-xl border border-slate-200
+                  text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => validerCommande(confirmCmd)}
+                disabled={!!busy}
+                className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700
+                  text-white text-sm font-semibold transition-colors
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busy ? "Validation..." : "Valider"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
