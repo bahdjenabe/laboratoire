@@ -48,6 +48,9 @@ export interface Examen {
   id: string;
   patientId: string;
   nomExamen: string;
+  // Regroupe les examens saisis ensemble pour un patient (une « commande »).
+  // Absent sur les examens créés avant cette fonctionnalité.
+  commandeId?: string;
   technicienId?: string;
   medecinId?: string;
   statut: StatutExamen;

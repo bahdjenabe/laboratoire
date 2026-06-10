@@ -16,7 +16,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { useSelection } from "@/hooks/useSelection";
 import BulkDeleteBar from "@/components/BulkDeleteBar";
 import { examenSchema, type ExamenInput } from "@/lib/validations";
-import type { StatutExamen } from "@/types";
+import type { Examen, StatutExamen } from "@/types";
 
 const STATUT_CONFIG: Record<StatutExamen, { label: string; cls: string }> = {
   en_attente: { label: "En attente", cls: "bg-slate-100 text-slate-600" },
@@ -35,6 +35,34 @@ const FILTRES: { key: StatutExamen | "tous"; label: string }[] = [
 
 const formatGNF = (n: number) =>
   `${new Intl.NumberFormat("fr-FR").format(n)} GNF`;
+
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "object" && value !== null && "toDate" in value) {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  return null;
+}
+
+const formatDate = (value: unknown): string => {
+  const d = toDate(value);
+  return d
+    ? d.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
+};
+
+// Statut « global » d'une commande = le moins avancé de ses examens.
+const STATUT_ORDRE: StatutExamen[] = [
+  "en_attente",
+  "en_cours",
+  "termine",
+  "valide",
+];
 
 export default function ExamensPage() {
   const { examens, loading, addExamen, removeExamen } = useExamens();
@@ -116,15 +144,48 @@ export default function ExamensPage() {
     );
   });
 
-  const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(filtered, 5, `${search}|${filtre}`);
+  // Regroupement par commande (examens saisis ensemble pour un patient).
+  // Les examens d'avant la fonctionnalité (sans commandeId) forment chacun
+  // leur propre groupe. L'ordre (createdAt desc) est préservé via la Map.
+  const commandes = useMemo(() => {
+    const map = new Map<string, Examen[]>();
+    for (const e of filtered) {
+      const key = e.commandeId ?? e.id;
+      const arr = map.get(key);
+      if (arr) arr.push(e);
+      else map.set(key, [e]);
+    }
+    return [...map.entries()].map(([key, exams]) => ({
+      key,
+      patientId: exams[0].patientId,
+      createdAt: exams[0].createdAt,
+      exams,
+      total: exams.reduce((s, e) => s + (e.prix || 0), 0),
+      statut: STATUT_ORDRE[
+        Math.min(...exams.map((e) => STATUT_ORDRE.indexOf(e.statut)))
+      ],
+    }));
+  }, [filtered]);
 
-  // Sélection multiple (admin) pour suppression groupée.
+  const { pageItems, page, totalPages, setPage, from, to, total } =
+    usePagination(commandes, 6, `${search}|${filtre}`);
+
+  // Lignes dépliées (clé de commande).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (key: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // Sélection multiple (admin) pour suppression groupée — au niveau examen.
   const { selected, toggle, setMany, clear } = useSelection();
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
-  const pageIds = pageItems.map((e) => e.id);
+  const pageExamIds = pageItems.flatMap((c) => c.exams.map((e) => e.id));
   const allPageSelected =
-    pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+    pageExamIds.length > 0 && pageExamIds.every((id) => selected.has(id));
 
   const handleBulkDelete = async () => {
     const ids = [...selected];
@@ -166,12 +227,16 @@ export default function ExamensPage() {
       setFormError("Sélectionnez au moins un examen.");
       return;
     }
+    // Tous les examens cochés ensemble partagent le même identifiant de
+    // commande : ils s'afficheront groupés sur une seule ligne du tableau.
+    const commandeId = crypto.randomUUID();
     try {
       for (const cat of choisis) {
         await addExamen({
           patientId: data.patientId,
           nomExamen: cat.nom,
           prix: cat.prix,
+          commandeId,
           statut: "en_attente",
           technicienId: user?.uid,
         });
@@ -304,16 +369,16 @@ export default function ExamensPage() {
               <input
                 type="checkbox"
                 checked={allPageSelected}
-                onChange={(e) => setMany(pageIds, e.target.checked)}
+                onChange={(e) => setMany(pageExamIds, e.target.checked)}
                 className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
               />
             )}
-            Examen
+            Examens
           </div>
           <div className="col-span-3">Patient</div>
-          <div className="col-span-2">Prix</div>
-          <div className="col-span-2">Statut</div>
-          <div className="col-span-1 text-right">Actions</div>
+          <div className="col-span-2">Date</div>
+          <div className="col-span-2">Total</div>
+          <div className="col-span-1">Statut</div>
         </div>
 
         {loading ? (
@@ -357,68 +422,139 @@ export default function ExamensPage() {
             )}
           </div>
         ) : (
-          pageItems.map((examen, idx) => {
-            const conf = STATUT_CONFIG[examen.statut];
+          pageItems.map((cmd, idx) => {
+            const conf = STATUT_CONFIG[cmd.statut];
+            const isOpen = expanded.has(cmd.key);
+            const groupIds = cmd.exams.map((e) => e.id);
+            const groupSelected =
+              estAdmin && groupIds.every((id) => selected.has(id));
+            const resume = cmd.exams.map((e) => e.nomExamen).join(", ");
             return (
               <div
-                key={examen.id}
-                onClick={() => router.push(`/dashboard/examens/${examen.id}`)}
-                className={`grid grid-cols-12 px-5 py-4 items-center
-                  hover:bg-slate-50 transition-colors cursor-pointer
-                  ${idx < pageItems.length - 1 ? "border-b border-slate-50" : ""}`}
+                key={cmd.key}
+                className={
+                  idx < pageItems.length - 1 ? "border-b border-slate-50" : ""
+                }
               >
-                <div className="col-span-4 flex items-center gap-3">
-                  {estAdmin && (
-                    <input
-                      type="checkbox"
-                      checked={selected.has(examen.id)}
-                      onChange={() => toggle(examen.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
-                    />
-                  )}
-                  <div
-                    className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600
-                    flex items-center justify-center text-base flex-shrink-0"
-                  >
-                    🔬
-                  </div>
-                  <p className="text-sm font-semibold text-slate-900 truncate">
-                    {examen.nomExamen}
-                  </p>
-                </div>
-                <div className="col-span-3">
-                  <p className="text-sm text-slate-700 truncate">
-                    {patientNom(examen.patientId)}
-                  </p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-slate-700">
-                    {formatGNF(examen.prix)}
-                  </p>
-                </div>
-                <div className="col-span-2">
-                  <span
-                    className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium ${conf.cls}`}
-                  >
-                    {conf.label}
-                  </span>
-                </div>
+                {/* Ligne commande */}
                 <div
-                  className="col-span-1 flex items-center justify-end"
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={() => toggleExpand(cmd.key)}
+                  className="grid grid-cols-12 px-5 py-4 items-center
+                    hover:bg-slate-50 transition-colors cursor-pointer"
                 >
-                  {peutGerer && (
-                    <button
-                      onClick={() => askDelete(examen.id)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg
-                        bg-slate-100 hover:bg-red-100 hover:text-red-600
-                        text-slate-500 transition-colors text-sm"
+                  <div className="col-span-4 flex items-center gap-3">
+                    {estAdmin && (
+                      <input
+                        type="checkbox"
+                        checked={groupSelected}
+                        onChange={(e) => setMany(groupIds, e.target.checked)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                      />
+                    )}
+                    <span className="text-slate-400 text-xs w-3 flex-shrink-0">
+                      {isOpen ? "▾" : "▸"}
+                    </span>
+                    <div
+                      className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600
+                      flex items-center justify-center text-base flex-shrink-0"
                     >
-                      🗑️
-                    </button>
-                  )}
+                      🔬
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {cmd.exams.length} examen
+                        {cmd.exams.length > 1 ? "s" : ""}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">{resume}</p>
+                    </div>
+                  </div>
+                  <div className="col-span-3">
+                    <p className="text-sm text-slate-700 truncate">
+                      {patientNom(cmd.patientId)}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm text-slate-700">
+                      {formatDate(cmd.createdAt)}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {formatGNF(cmd.total)}
+                    </p>
+                  </div>
+                  <div className="col-span-1">
+                    <span
+                      className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium ${conf.cls}`}
+                    >
+                      {conf.label}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Examens de la commande (dépliés) */}
+                {isOpen && (
+                  <div className="bg-slate-50/60">
+                    {cmd.exams.map((examen) => {
+                      const sc = STATUT_CONFIG[examen.statut];
+                      return (
+                        <div
+                          key={examen.id}
+                          onClick={() =>
+                            router.push(`/dashboard/examens/${examen.id}`)
+                          }
+                          className="grid grid-cols-12 px-5 py-3 items-center
+                            border-t border-slate-100 hover:bg-white transition-colors cursor-pointer"
+                        >
+                          <div className="col-span-4 flex items-center gap-3 pl-7">
+                            {estAdmin && (
+                              <input
+                                type="checkbox"
+                                checked={selected.has(examen.id)}
+                                onChange={() => toggle(examen.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                              />
+                            )}
+                            <p className="text-sm text-slate-700 truncate">
+                              {examen.nomExamen}
+                            </p>
+                          </div>
+                          <div className="col-span-3 text-xs text-slate-400">
+                            Voir le détail →
+                          </div>
+                          <div className="col-span-2" />
+                          <div className="col-span-2">
+                            <p className="text-sm text-slate-600">
+                              {formatGNF(examen.prix)}
+                            </p>
+                          </div>
+                          <div className="col-span-1 flex items-center justify-between gap-2">
+                            <span
+                              className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${sc.cls}`}
+                            >
+                              {sc.label}
+                            </span>
+                            {peutGerer && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  askDelete(examen.id);
+                                }}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg
+                                  bg-slate-100 hover:bg-red-100 hover:text-red-600
+                                  text-slate-500 transition-colors text-xs flex-shrink-0"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })
@@ -433,7 +569,7 @@ export default function ExamensPage() {
           to={to}
           total={total}
           onChange={setPage}
-          unitLabel="examens"
+          unitLabel="commandes"
         />
       )}
 
