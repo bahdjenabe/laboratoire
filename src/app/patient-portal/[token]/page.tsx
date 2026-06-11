@@ -84,7 +84,7 @@ export default function PatientPortalPage() {
   }
 
   // Vue unifiée : un résultat unique = une seule « section » ; une commande =
-  // plusieurs examens. Chaque section peut être téléchargée en PDF.
+  // plusieurs examens. Un seul PDF regroupe toutes les sections.
   const sections =
     resultat.examens && resultat.examens.length > 0
       ? resultat.examens
@@ -96,16 +96,6 @@ export default function PatientPortalPage() {
             ref: resultat.ref,
           },
         ];
-
-  const telechargerSection = (s: (typeof sections)[number]) =>
-    generatePublicReport({
-      ...resultat,
-      examenNom: s.examenNom,
-      valeurs: s.valeurs,
-      observations: s.observations,
-      ref: s.ref,
-      examens: undefined,
-    });
 
   return (
     <main className="min-h-screen bg-slate-100 py-8 px-4 print:bg-white print:py-0">
@@ -212,25 +202,22 @@ export default function PatientPortalPage() {
                       </p>
                     </div>
                   )}
-
-                  <div className="mt-3 print:hidden">
-                    <button
-                      onClick={() => telechargerSection(s)}
-                      className="h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50
-                        text-slate-700 font-semibold text-sm transition-colors"
-                    >
-                      ⬇️ Télécharger {sections.length > 1 ? "cet examen" : "le rapport"} (PDF)
-                    </button>
-                  </div>
                 </div>
               );
             })}
 
-            {/* Impression de la page complète */}
-            <div className="pt-2 print:hidden">
+            {/* Téléchargement (PDF unique, tous examens) + impression */}
+            <div className="pt-2 print:hidden flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => generatePublicReport(resultat)}
+                className="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700
+                  text-white font-semibold text-sm transition-colors"
+              >
+                ⬇️ Télécharger le rapport (PDF)
+              </button>
               <button
                 onClick={() => window.print()}
-                className="w-full h-12 rounded-xl border border-slate-200 hover:bg-slate-50
+                className="flex-1 h-12 rounded-xl border border-slate-200 hover:bg-slate-50
                   text-slate-700 font-semibold text-sm transition-colors"
               >
                 🖨️ Imprimer la page

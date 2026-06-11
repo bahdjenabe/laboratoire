@@ -29,6 +29,8 @@ function age(dateNaissance: unknown): string {
   return `${Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25))} ans`;
 }
 
+const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+
 // Palette (RGB)
 const EMERALD: [number, number, number] = [5, 150, 105];
 const EMERALD_LIGHT: [number, number, number] = [209, 250, 229]; // emerald-100
@@ -81,22 +83,54 @@ function drawSignature(doc: jsPDF, x: number, y: number): void {
   doc.setLineWidth(0.2);
 }
 
+// Une « section » = un examen rendu dans le rapport (titre + tableau + obs.).
+interface ReportSection {
+  nom: string;
+  valeurs: Record<string, string | number>;
+  observations?: string;
+}
+
+interface ReportOptions {
+  patient: Patient;
+  sections: ReportSection[];
+  valide: boolean;
+  dateRef: unknown;
+  ref?: string;
+  fileName: string;
+}
+
 /**
- * Génère et télécharge le rapport PDF d'un résultat d'analyse.
+ * Moteur de rendu commun : un seul PDF pouvant contenir plusieurs examens,
+ * avec saut de page automatique quand le contenu déborde.
  */
-export function generateReport(
-  examen: Examen,
-  patient: Patient,
-  resultat: Resultat,
-): void {
+function renderReport({
+  patient,
+  sections,
+  valide,
+  dateRef,
+  ref,
+  fileName,
+}: ReportOptions): void {
   const doc = new jsPDF();
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const marginX = 16;
   const contentW = pageW - marginX * 2;
+  // Limite basse du contenu : on réserve la place du pied de page.
+  const bottomLimit = pageH - 26;
   doc.setLineWidth(0.2);
 
-  // ── Bandeau d'en-tête ─────────────────────────────
+  let y = 0;
+
+  const newPage = () => {
+    doc.addPage();
+    y = 20;
+  };
+  const ensure = (h: number) => {
+    if (y + h > bottomLimit) newPage();
+  };
+
+  // ── Bandeau d'en-tête (première page) ─────────────
   doc.setFillColor(...EMERALD);
   doc.rect(0, 0, pageW, 34, "F");
 
@@ -124,21 +158,17 @@ export function generateReport(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text("RAPPORT D'ANALYSE", pageW - marginX, 15, { align: "right" });
-  const dateRef = resultat.valideAt ?? resultat.createdAt;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.setTextColor(...EMERALD_LIGHT);
   doc.text(`Date : ${formatDate(dateRef)}`, pageW - marginX, 22, {
     align: "right",
   });
-  const ref = String(resultat.id || examen.id || "")
-    .slice(0, 8)
-    .toUpperCase();
   if (ref) {
     doc.text(`Réf : ${ref}`, pageW - marginX, 27, { align: "right" });
   }
 
-  let y = 46;
+  y = 46;
 
   // ── Carte patient ─────────────────────────────────
   const cardH = 26;
@@ -167,87 +197,107 @@ export function generateReport(
   );
   y += cardH + 12;
 
-  // ── Titre de l'analyse ────────────────────────────
-  doc.setFillColor(...EMERALD);
-  doc.rect(marginX, y - 4.5, 2.5, 7, "F"); // barre d'accent
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(...GRAY);
-  doc.text("ANALYSE", marginX + 6, y - 1.5);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(...DARK);
-  doc.text(examen.nomExamen, marginX + 6, y + 4);
-  y += 12;
-
-  // ── Tableau des valeurs ───────────────────────────
-  const entries = Object.entries(resultat.valeurs ?? {});
-  const colValX = marginX + contentW * 0.58;
+  // ── Sections (une par examen) ─────────────────────
   const rowH = 9;
-  const tableTop = y;
+  const colValX = marginX + contentW * 0.58;
 
-  // En-tête du tableau
-  doc.setFillColor(...EMERALD);
-  doc.rect(marginX, y, contentW, rowH, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255);
-  doc.text("PARAMÈTRE", marginX + 4, y + 6);
-  doc.text("RÉSULTAT", colValX, y + 6);
-  y += rowH;
+  sections.forEach((section) => {
+    // Garder le titre solidaire de l'en-tête du tableau + une ligne.
+    ensure(12 + rowH * 2);
 
-  doc.setFontSize(10);
-  if (entries.length === 0) {
+    // Titre de l'analyse
+    doc.setFillColor(...EMERALD);
+    doc.rect(marginX, y - 4.5, 2.5, 7, "F"); // barre d'accent
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(...GRAY);
-    doc.text("Aucune valeur saisie.", marginX + 4, y + 6);
-    y += rowH;
-  } else {
-    entries.forEach(([param, valeur], i) => {
-      if (i % 2 === 1) {
-        doc.setFillColor(...LIGHT);
-        doc.rect(marginX, y, contentW, rowH, "F");
-      }
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(51, 65, 85);
-      doc.text(String(param), marginX + 4, y + 6);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...DARK);
-      doc.text(String(valeur), colValX, y + 6);
-      doc.setDrawColor(...BORDER);
-      doc.line(marginX, y + rowH, marginX + contentW, y + rowH);
-      y += rowH;
-    });
-  }
-
-  // Cadre + séparateur de colonnes
-  doc.setDrawColor(...BORDER);
-  doc.rect(marginX, tableTop, contentW, y - tableTop);
-  doc.line(colValX - 4, tableTop, colValX - 4, y);
-  y += 14;
-
-  // ── Observations ──────────────────────────────────
-  if (resultat.observations) {
-    doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.setTextColor(...EMERALD);
-    doc.text("OBSERVATIONS", marginX, y);
-    y += 4;
-    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...GRAY);
+    doc.text("ANALYSE", marginX + 6, y - 1.5);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...DARK);
+    doc.text(section.nom, marginX + 6, y + 4);
+    y += 12;
+
+    // Tableau des valeurs (segmenté si saut de page en plein tableau)
+    let tableTop = y;
+    const closeSegment = () => {
+      doc.setDrawColor(...BORDER);
+      doc.rect(marginX, tableTop, contentW, y - tableTop);
+      doc.line(colValX - 4, tableTop, colValX - 4, y);
+    };
+    const drawHeadRow = () => {
+      doc.setFillColor(...EMERALD);
+      doc.rect(marginX, y, contentW, rowH, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text("PARAMÈTRE", marginX + 4, y + 6);
+      doc.text("RÉSULTAT", colValX, y + 6);
+      y += rowH;
+    };
+    drawHeadRow();
+
     doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    const lines = doc.splitTextToSize(resultat.observations, contentW - 10);
-    const boxH = lines.length * 5 + 8;
-    doc.setFillColor(...LIGHT);
-    doc.setDrawColor(...BORDER);
-    doc.roundedRect(marginX, y, contentW, boxH, 2.5, 2.5, "FD");
-    doc.text(lines, marginX + 5, y + 6);
-    y += boxH + 12;
-  }
+    const entries = Object.entries(section.valeurs ?? {});
+    if (entries.length === 0) {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...GRAY);
+      doc.text("Aucune valeur saisie.", marginX + 4, y + 6);
+      y += rowH;
+    } else {
+      entries.forEach(([param, valeur], i) => {
+        if (y + rowH > bottomLimit) {
+          closeSegment();
+          newPage();
+          tableTop = y;
+          drawHeadRow();
+          doc.setFontSize(10);
+        }
+        if (i % 2 === 1) {
+          doc.setFillColor(...LIGHT);
+          doc.rect(marginX, y, contentW, rowH, "F");
+        }
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(51, 65, 85);
+        doc.text(String(param), marginX + 4, y + 6);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...DARK);
+        doc.text(String(valeur), colValX, y + 6);
+        doc.setDrawColor(...BORDER);
+        doc.line(marginX, y + rowH, marginX + contentW, y + rowH);
+        y += rowH;
+      });
+    }
+    closeSegment();
+    y += 10;
+
+    // Observations de la section
+    if (section.observations) {
+      doc.setFontSize(10);
+      const lines = doc.splitTextToSize(section.observations, contentW - 10);
+      const boxH = lines.length * 5 + 8;
+      ensure(4 + boxH + 8);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(...EMERALD);
+      doc.text("OBSERVATIONS", marginX, y);
+      y += 4;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(71, 85, 105);
+      doc.setFillColor(...LIGHT);
+      doc.setDrawColor(...BORDER);
+      doc.roundedRect(marginX, y, contentW, boxH, 2.5, 2.5, "FD");
+      doc.text(lines, marginX + 5, y + 6);
+      y += boxH + 10;
+    }
+    y += 4;
+  });
 
   // ── Badge de validation ───────────────────────────
   const badgeH = 11;
-  if (resultat.valideParMedecin) {
+  ensure(badgeH + 18 + 22);
+  if (valide) {
     doc.setFillColor(...EMERALD_LIGHT);
     doc.roundedRect(marginX, y, contentW, badgeH, 2.5, 2.5, "F");
     doc.setFont("helvetica", "bold");
@@ -277,7 +327,7 @@ export function generateReport(
   const sigX = pageW - marginX - 60;
 
   // Cachet + signature uniquement si le résultat est validé
-  if (resultat.valideParMedecin) {
+  if (valide) {
     drawCachet(doc, sigX + 4, sigBaseY - 7, 12);
     drawSignature(doc, sigX + 24, sigBaseY - 6);
   }
@@ -289,28 +339,63 @@ export function generateReport(
   doc.setTextColor(...GRAY);
   doc.text("Signature et cachet du médecin", sigX, sigBaseY + 5);
 
-  // ── Pied de page ──────────────────────────────────
-  doc.setDrawColor(...BORDER);
-  doc.line(marginX, pageH - 18, pageW - marginX, pageH - 18);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    "Document généré par LabMédical  -  Ce rapport est strictement confidentiel.",
-    pageW / 2,
-    pageH - 12,
-    { align: "center" },
-  );
+  // ── Pied de page (sur chaque page) ────────────────
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(...BORDER);
+    doc.line(marginX, pageH - 18, pageW - marginX, pageH - 18);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      "Document généré par LabMédical  -  Ce rapport est strictement confidentiel.",
+      pageW / 2,
+      pageH - 12,
+      { align: "center" },
+    );
+    if (pages > 1) {
+      doc.text(`${p} / ${pages}`, pageW - marginX, pageH - 12, {
+        align: "right",
+      });
+    }
+  }
 
-  // ── Téléchargement ────────────────────────────────
-  const safe = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-  doc.save(`resultat-${safe(patient.nom)}-${safe(examen.nomExamen)}.pdf`);
+  doc.save(fileName);
 }
 
 /**
- * Variante portail patient : génère le même rapport à partir du snapshot
- * public (`public_resultats`), qui contient désormais la démographie du
- * patient. Le résultat étant publié, il est forcément validé.
+ * Génère et télécharge le rapport PDF d'un résultat d'analyse.
+ */
+export function generateReport(
+  examen: Examen,
+  patient: Patient,
+  resultat: Resultat,
+): void {
+  const ref = String(resultat.id || examen.id || "")
+    .slice(0, 8)
+    .toUpperCase();
+  renderReport({
+    patient,
+    sections: [
+      {
+        nom: examen.nomExamen,
+        valeurs: resultat.valeurs ?? {},
+        observations: resultat.observations,
+      },
+    ],
+    valide: !!resultat.valideParMedecin,
+    dateRef: resultat.valideAt ?? resultat.createdAt,
+    ref,
+    fileName: `resultat-${safe(patient.nom)}-${safe(examen.nomExamen)}.pdf`,
+  });
+}
+
+/**
+ * Variante portail patient : génère le rapport à partir du snapshot public
+ * (`public_resultats`). Un snapshot de commande (plusieurs examens) produit
+ * un PDF unique regroupant toutes les sections. Le résultat étant publié,
+ * il est forcément validé.
  */
 export function generatePublicReport(pub: PublicResultat): void {
   const patient: Patient = {
@@ -324,24 +409,32 @@ export function generatePublicReport(pub: PublicResultat): void {
     groupeSanguin: pub.groupeSanguin,
     createdAt: new Date(),
   };
-  const examen: Examen = {
-    id: pub.ref ?? "",
-    patientId: "",
-    nomExamen: pub.examenNom ?? "",
-    statut: "valide",
-    prix: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  const resultat: Resultat = {
-    id: pub.ref ?? "",
-    examenId: "",
-    patientId: "",
-    valeurs: pub.valeurs,
-    observations: pub.observations,
-    valideParMedecin: true,
-    valideAt: pub.valideAt,
-    createdAt: pub.valideAt,
-  };
-  generateReport(examen, patient, resultat);
+
+  const sections: ReportSection[] =
+    pub.examens && pub.examens.length > 0
+      ? pub.examens.map((e) => ({
+          nom: e.examenNom ?? "Analyse",
+          valeurs: e.valeurs ?? {},
+          observations: e.observations,
+        }))
+      : [
+          {
+            nom: pub.examenNom ?? "Analyse",
+            valeurs: pub.valeurs ?? {},
+            observations: pub.observations,
+          },
+        ];
+
+  const nomPatient = safe(pub.patientNom || "patient");
+  renderReport({
+    patient,
+    sections,
+    valide: true,
+    dateRef: pub.valideAt,
+    ref: pub.ref ? pub.ref.slice(0, 8).toUpperCase() : undefined,
+    fileName:
+      sections.length > 1
+        ? `resultats-${nomPatient}.pdf`
+        : `resultat-${nomPatient}-${safe(sections[0].nom)}.pdf`,
+  });
 }
