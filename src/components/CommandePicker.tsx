@@ -10,6 +10,31 @@ import type { Examen } from "@/types";
 const formatGNF = (n: number) =>
   `${new Intl.NumberFormat("fr-FR").format(n)} GNF`;
 
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "object" && value !== null && "toDate" in value) {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  if (typeof value === "string" || typeof value === "number")
+    return new Date(value);
+  return null;
+}
+
+// Date + heure : distingue deux commandes d'un même patient le même jour.
+function formatDateTime(value: unknown): string {
+  const d = toDate(value);
+  return d
+    ? d.toLocaleString("fr-FR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+}
+
 const BROWSE_LIMIT = 8;
 
 export interface CommandeAFacturer {
@@ -22,6 +47,8 @@ export interface CommandeAFacturer {
 interface Props {
   commandes: CommandeAFacturer[];
   patientNom: (patientId: string) => string;
+  // Matricule patient (ex: P-2026-0042) pour différencier les commandes.
+  patientNumero?: (patientId: string) => string | undefined;
   value: string;
   onChange: (key: string) => void;
   error?: string;
@@ -30,6 +57,7 @@ interface Props {
 export default function CommandePicker({
   commandes,
   patientNom,
+  patientNumero,
   value,
   onChange,
   error,
@@ -53,11 +81,12 @@ export default function CommandePicker({
     return commandes
       .filter((c) => {
         const pat = patientNom(c.patientId).toLowerCase();
+        const num = (patientNumero?.(c.patientId) ?? "").toLowerCase();
         const exns = c.exams.map((e) => e.nomExamen.toLowerCase()).join(" ");
-        return pat.includes(q) || exns.includes(q);
+        return pat.includes(q) || num.includes(q) || exns.includes(q);
       })
       .slice(0, 50);
-  }, [commandes, query, patientNom]);
+  }, [commandes, query, patientNom, patientNumero]);
 
   useEffect(() => {
     if (!open) return;
@@ -82,6 +111,22 @@ export default function CommandePicker({
   const resume = (c: CommandeAFacturer) =>
     c.exams.map((e) => e.nomExamen).join(", ");
 
+  const commandeDate = (c: CommandeAFacturer) =>
+    formatDateTime(c.exams[0]?.createdAt);
+
+  // Ligne d'identité : matricule (si dispo) + patient + nb d'examens.
+  const titre = (c: CommandeAFacturer) => {
+    const num = patientNumero?.(c.patientId);
+    const nom = patientNom(c.patientId);
+    const base = num ? `${num} · ${nom}` : nom;
+    return `${base} — ${c.exams.length} examen${c.exams.length > 1 ? "s" : ""}`;
+  };
+
+  const sousTitre = (c: CommandeAFacturer) => {
+    const d = commandeDate(c);
+    return `${resume(c)} • ${formatGNF(c.total)}${d ? ` • ${d}` : ""}`;
+  };
+
   // Commande sélectionnée → carte récapitulative
   if (selected) {
     return (
@@ -92,11 +137,10 @@ export default function CommandePicker({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-slate-900 truncate">
-              {patientNom(selected.patientId)} — {selected.exams.length} examen
-              {selected.exams.length > 1 ? "s" : ""}
+              {titre(selected)}
             </p>
             <p className="text-xs text-slate-400 truncate">
-              {resume(selected)} • {formatGNF(selected.total)}
+              {sousTitre(selected)}
             </p>
           </div>
           <button
@@ -127,7 +171,7 @@ export default function CommandePicker({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Rechercher une commande (patient ou examen)..."
+          placeholder="Rechercher (matricule, patient ou examen)..."
           className="w-full h-11 pl-9 pr-3 rounded-xl border border-slate-200
             bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400
             focus:outline-none focus:border-emerald-500
@@ -160,11 +204,10 @@ export default function CommandePicker({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-slate-900 truncate">
-                        {patientNom(c.patientId)} — {c.exams.length} examen
-                        {c.exams.length > 1 ? "s" : ""}
+                        {titre(c)}
                       </p>
                       <p className="text-xs text-slate-400 truncate">
-                        {resume(c)} • {formatGNF(c.total)}
+                        {sousTitre(c)}
                       </p>
                     </div>
                   </button>

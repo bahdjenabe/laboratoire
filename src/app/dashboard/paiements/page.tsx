@@ -774,6 +774,7 @@ export default function PaiementsPage() {
                 <CommandePicker
                   commandes={commandesAFacturer}
                   patientNom={patientNom}
+                  patientNumero={(id) => patientsMap.get(id)?.numero}
                   value={selectedKey}
                   onChange={setSelectedKey}
                 />
