@@ -11,12 +11,21 @@
 // l'ordinateur est correctement compté (un setTimeout est suspendu pendant la
 // veille, ce qui prolongeait indûment le délai). Au réveil / retour d'onglet,
 // une re-vérification immédiate est déclenchée (visibilitychange).
+//
+// L'horodatage est PERSISTÉ dans localStorage (lib/idleActivity) : un
+// rechargement de page ou le déchargement de l'onglet par le navigateur
+// (fréquent pendant la veille du PC) ne remet donc pas le compteur à zéro.
+// AuthContext fait le même contrôle au démarrage, avant de restaurer la
+// session Firebase.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-
-const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 heures
+import {
+  IDLE_TIMEOUT_MS,
+  getLastActivity,
+  touchActivity,
+} from "@/lib/idleActivity";
 const WARNING_BEFORE_MS = 2 * 60 * 1000; // avertissement 2 min avant
 const TICK_MS = 1000; // fréquence de vérification + décompte
 const COUNTDOWN_START = Math.ceil(WARNING_BEFORE_MS / 1000);
@@ -58,17 +67,24 @@ export default function IdleLogout() {
   // Réarme le minuteur (activité récente ou clic « Rester connecté »).
   const resetActivity = useCallback(() => {
     lastActivity.current = Date.now();
+    touchActivity();
     warningActive.current = false;
     setShowWarning(false);
   }, []);
 
   useEffect(() => {
-    // Point de départ de l'inactivité = montage du composant.
-    lastActivity.current = Date.now();
+    // Point de départ = horodatage persisté (survit aux rechargements) ;
+    // s'il n'y en a pas encore, l'inactivité démarre au montage.
+    const stored = getLastActivity();
+    lastActivity.current = stored ?? Date.now();
+    if (stored === null) touchActivity();
 
     // Compare le temps écoulé réel (horloge murale) au seuil d'inactivité.
+    // Lit localStorage pour partager l'activité entre onglets (fallback sur
+    // la ref si localStorage est indisponible).
     const check = () => {
-      const elapsed = Date.now() - lastActivity.current;
+      const last = getLastActivity() ?? lastActivity.current;
+      const elapsed = Date.now() - last;
       if (elapsed >= IDLE_TIMEOUT_MS) {
         warningActive.current = false;
         void doLogoutRef.current();
@@ -90,6 +106,7 @@ export default function IdleLogout() {
       if (now - lastReset.current < 1000) return; // throttle
       lastReset.current = now;
       lastActivity.current = now;
+      touchActivity();
     };
 
     // Retour d'onglet / réveil de veille : vérifier sans attendre le prochain tick.

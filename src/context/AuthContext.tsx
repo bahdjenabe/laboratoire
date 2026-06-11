@@ -18,6 +18,11 @@ import {
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { logError } from "@/lib/logError";
+import {
+  clearActivity,
+  isIdleExpired,
+  touchActivity,
+} from "@/lib/idleActivity";
 import type { User } from "@/types";
 
 interface AuthContextType {
@@ -77,6 +82,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       auth,
       async (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser) {
+          // ✅ Session inactive depuis plus de 2 h (PC en veille, onglet
+          // déchargé, navigateur rouvert…) : on refuse de la restaurer même
+          // si Firebase l'a persistée. signOut redéclenche ce callback avec
+          // null, qui effectue le nettoyage (cache + cookie).
+          if (isIdleExpired()) {
+            clearActivity();
+            await signOut(auth);
+            return;
+          }
           try {
             const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
             if (userDoc.exists()) {
@@ -112,6 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<void> => {
+    // ✅ Marquer l'activité AVANT que onAuthStateChanged ne vérifie
+    // l'inactivité, sinon un vieil horodatage déconnecterait aussitôt.
+    touchActivity();
     const cred = await signInWithEmailAndPassword(auth, email, password);
     // Pose le cookie immédiatement (onAuthStateChanged le refera, idempotent).
     await syncSessionCookie(cred.user);
@@ -119,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async (): Promise<void> => {
     localStorage.removeItem(USER_CACHE_KEY);
+    clearActivity();
     await clearSessionCookie();
     setUser(null);
     await signOut(auth);
