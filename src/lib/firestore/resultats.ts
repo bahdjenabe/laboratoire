@@ -5,6 +5,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   getDoc,
   getDocs,
   query,
@@ -14,6 +15,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getExamen } from '@/lib/firestore/examens';
 import type { Resultat, PublicResultat } from '@/types';
 
 const COLLECTION = 'resultats';
@@ -24,6 +26,19 @@ function generateToken(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Token public stable d'une commande : SHA-256 de sa clé (commandeId).
+// Déterministe → le lien reste le même à chaque partage ; indevinable car
+// dérivé du commandeId (UUID aléatoire non exposé publiquement).
+export async function commandeToken(key: string): Promise<string> {
+  const buf = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode('cmd:' + key),
+  );
+  return [...new Uint8Array(buf)]
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 // ── Créer un résultat ─────────────────────────────
@@ -85,27 +100,26 @@ export async function updateResultat(
 }
 
 // ── Valider un résultat (médecin) ─────────────────
-// Génère un token, publie un snapshot figé dans public_resultats/{token}
-// (consultation publique), puis marque le résultat comme validé.
-// Retourne le token pour construire le lien de consultation.
-export async function validerResultat(
-  id: string,
-  snapshot: {
-    examenNom?: string;
-    patientPrenom?: string;
-    patientNom?: string;
-    dateNaissance?: Date;
-    sexe?: 'M' | 'F' | 'Autre';
-    telephone?: string;
-    groupeSanguin?: string;
-    valeurs: Record<string, string | number>;
-    observations?: string;
-  }
-): Promise<string> {
-  const token = generateToken();
+// Champs du snapshot public d'un résultat : uniquement les données destinées
+// au patient (sa propre donnée), aucune référence interne (ni patientId ni
+// examenId).
+export interface ResultatPublicInput {
+  examenNom?: string;
+  patientPrenom?: string;
+  patientNom?: string;
+  dateNaissance?: Date;
+  sexe?: 'M' | 'F' | 'Autre';
+  telephone?: string;
+  groupeSanguin?: string;
+  valeurs: Record<string, string | number>;
+  observations?: string;
+}
 
-  // Snapshot public : uniquement les champs destinés au patient (sa propre
-  // donnée), aucune référence interne (ni patientId ni examenId).
+async function publierSnapshotResultat(
+  token: string,
+  id: string,
+  snapshot: ResultatPublicInput
+): Promise<void> {
   await setDoc(doc(db, PUBLIC_COLLECTION, token), {
     examenNom: snapshot.examenNom ?? '',
     patientPrenom: snapshot.patientPrenom ?? '',
@@ -119,14 +133,52 @@ export async function validerResultat(
     valideAt: serverTimestamp(),
     ref: id,
   });
+}
 
+// Génère un token, publie un snapshot figé dans public_resultats/{token}
+// (consultation publique), puis marque le résultat comme validé.
+// Retourne le token pour construire le lien de consultation.
+export async function validerResultat(
+  id: string,
+  snapshot: ResultatPublicInput
+): Promise<string> {
+  const token = generateToken();
+  await publierSnapshotResultat(token, id, snapshot);
   await updateDoc(doc(db, COLLECTION, id), {
     valideParMedecin: true,
     valideAt: serverTimestamp(),
     token,
   });
-
   return token;
+}
+
+// ── Générer un nouveau lien pour un résultat déjà validé ──────────
+// Utilisé après une révocation : publie un nouveau snapshot sous un token
+// neuf, sans toucher à la validation. Retourne le nouveau token.
+export async function genererLienResultat(
+  id: string,
+  snapshot: ResultatPublicInput
+): Promise<string> {
+  const token = generateToken();
+  await publierSnapshotResultat(token, id, snapshot);
+  await updateDoc(doc(db, COLLECTION, id), { token });
+  return token;
+}
+
+// ── Révoquer les liens publics d'une commande ─────────────────────
+// Supprime le snapshot combiné de la commande ET les snapshots individuels
+// de chaque résultat (le champ token est effacé : les boutons de partage
+// regénéreront un lien neuf). Les anciens liens cessent de fonctionner.
+export async function revoquerLiensCommande(args: {
+  commandeKey: string;
+  resultats: { id: string; token?: string }[];
+}): Promise<void> {
+  await deleteDoc(doc(db, PUBLIC_COLLECTION, await commandeToken(args.commandeKey)));
+  for (const r of args.resultats) {
+    if (!r.token) continue;
+    await deleteDoc(doc(db, PUBLIC_COLLECTION, r.token));
+    await updateDoc(doc(db, COLLECTION, r.id), { token: deleteField() });
+  }
 }
 
 // ── Publier une commande (un seul lien pour plusieurs examens) ────
@@ -178,6 +230,23 @@ export async function getPublicResultat(
 }
 
 // ── Supprimer un résultat ─────────────────────────
+// Supprime aussi ses snapshots publics : le lien individuel (token) et le
+// lien de commande éventuel (qui contenait ce résultat). Sans cette cascade,
+// le rapport resterait consultable publiquement après suppression.
 export async function deleteResultat(id: string): Promise<void> {
+  const existing = await getResultat(id);
+  if (existing) {
+    if (existing.token) {
+      await deleteDoc(doc(db, PUBLIC_COLLECTION, existing.token));
+    }
+    if (existing.examenId) {
+      const examen = await getExamen(existing.examenId);
+      if (examen?.commandeId) {
+        await deleteDoc(
+          doc(db, PUBLIC_COLLECTION, await commandeToken(examen.commandeId))
+        );
+      }
+    }
+  }
   await deleteDoc(doc(db, COLLECTION, id));
 }

@@ -60,10 +60,12 @@ service cloud.firestore {
     match /public_resultats/{token} {
       // Consultation publique du rapport validé via lien sécurisé (token).
       // get uniquement : le token (≈192 bits) sert de secret ; pas d'énumération.
+      // Écriture : médecin/admin uniquement — publier ou révoquer un rapport
+      // relève de la validation médicale, pas de la saisie (technicien).
       allow get: if true;
       allow list: if false;
       allow create, update, delete:
-        if hasRole('admin') || hasRole('medecin') || hasRole('technicien');
+        if hasRole('admin') || hasRole('medecin');
     }
 
     match /paiements/{id} {

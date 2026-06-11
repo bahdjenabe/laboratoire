@@ -7,26 +7,19 @@ import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
 import { useAuth } from "@/context/AuthContext";
 import { usePagination } from "@/hooks/usePagination";
-import { validerResultat, publierCommande } from "@/lib/firestore/resultats";
+import {
+  validerResultat,
+  publierCommande,
+  commandeToken,
+  genererLienResultat,
+  revoquerLiensCommande,
+} from "@/lib/firestore/resultats";
 import { updateStatutExamen } from "@/lib/firestore/examens";
 import { logError } from "@/lib/logError";
 import Pagination from "@/components/Pagination";
 import PatientNotify from "@/components/PatientNotify";
 import CommandeNotify from "@/components/CommandeNotify";
 import type { Patient, Resultat } from "@/types";
-
-// Token public stable d'une commande : SHA-256 de sa clé (commandeId).
-// Déterministe → le lien reste le même à chaque partage ; indevinable car
-// dérivé du commandeId (UUID aléatoire non exposé publiquement).
-async function commandeToken(key: string): Promise<string> {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode("cmd:" + key),
-  );
-  return [...new Uint8Array(buf)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 const FILTRES: { key: "tous" | "valide" | "attente"; label: string }[] = [
   { key: "tous", label: "Tous" },
@@ -73,6 +66,7 @@ export default function ResultatsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmCmd, setConfirmCmd] = useState<CommandeResultat | null>(null);
+  const [revokeCmd, setRevokeCmd] = useState<CommandeResultat | null>(null);
   const [shareResultat, setShareResultat] = useState<Resultat | null>(null);
   const [sharing, setSharing] = useState<string | null>(null);
   const [shareData, setShareData] = useState<{
@@ -173,11 +167,59 @@ export default function ResultatsPage() {
     }
   };
 
+  // Révoque tous les liens publics d'une commande : le lien combiné et les
+  // liens individuels. Les liens déjà transmis cessent de fonctionner ;
+  // « Partager » regénérera des liens neufs.
+  const revoquerCommande = async (cmd: CommandeResultat) => {
+    setBusy(cmd.key);
+    try {
+      await revoquerLiensCommande({
+        commandeKey: cmd.key,
+        resultats: cmd.resultats.map((r) => ({ id: r.id, token: r.token })),
+      });
+    } catch (err) {
+      logError(err, { scope: "resultats", action: "revoquerCommande" });
+    } finally {
+      setBusy(null);
+      setRevokeCmd(null);
+    }
+  };
+
+  // Partage d'un résultat seul. Si son lien a été révoqué, un nouveau token
+  // est généré (nouveau snapshot public) avant d'ouvrir le partage.
+  const partagerResultat = async (r: Resultat) => {
+    if (r.token) {
+      setShareResultat(r);
+      return;
+    }
+    const patient = patientsMap.get(r.patientId);
+    if (!patient) return;
+    setSharing(r.id);
+    try {
+      const token = await genererLienResultat(r.id, {
+        examenNom: examensMap.get(r.examenId)?.nomExamen,
+        patientPrenom: patient.prenom,
+        patientNom: patient.nom,
+        dateNaissance: patient.dateNaissance,
+        sexe: patient.sexe,
+        telephone: patient.telephone,
+        groupeSanguin: patient.groupeSanguin,
+        valeurs: r.valeurs,
+        observations: r.observations,
+      });
+      setShareResultat({ ...r, token });
+    } catch (err) {
+      logError(err, { scope: "resultats", action: "partageResultat" });
+    } finally {
+      setSharing(null);
+    }
+  };
+
   // Publie un snapshot combiné (1 token = tous les examens validés) puis
   // ouvre le partage avec ce lien unique.
   const ouvrirPartageCommande = async (cmd: CommandeResultat) => {
     const patient = patientsMap.get(cmd.patientId);
-    const valides = cmd.resultats.filter((r) => r.valideParMedecin && r.token);
+    const valides = cmd.resultats.filter((r) => r.valideParMedecin);
     if (!patient || valides.length === 0) return;
     setSharing(cmd.key);
     try {
@@ -372,7 +414,7 @@ export default function ResultatsPage() {
                           : `✔ Valider (${cmd.nbAValider})`}
                       </button>
                     )}
-                    {cmd.resultats.some((r) => r.valideParMedecin && r.token) && (
+                    {cmd.resultats.some((r) => r.valideParMedecin) && (
                       <button
                         onClick={() => ouvrirPartageCommande(cmd)}
                         disabled={sharing === cmd.key}
@@ -383,6 +425,19 @@ export default function ResultatsPage() {
                           disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {sharing === cmd.key ? "Préparation..." : "📤 Partager"}
+                      </button>
+                    )}
+                    {peutValider && cmd.resultats.some((r) => r.token) && (
+                      <button
+                        onClick={() => setRevokeCmd(cmd)}
+                        disabled={busy === cmd.key}
+                        title="Révoquer les liens partagés au patient"
+                        aria-label="Révoquer les liens publics de la commande"
+                        className="px-3 h-9 rounded-lg border border-red-200 text-red-600
+                          hover:bg-red-50 text-xs font-semibold transition-colors whitespace-nowrap
+                          disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        🔒 Révoquer
                       </button>
                     )}
                   </div>
@@ -422,16 +477,18 @@ export default function ResultatsPage() {
                             className="col-span-4 flex justify-end items-center gap-2"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {r.valideParMedecin && r.token && (
+                            {r.valideParMedecin && (
                               <button
-                                onClick={() => setShareResultat(r)}
+                                onClick={() => partagerResultat(r)}
+                                disabled={sharing === r.id}
                                 title="Partager le résultat au patient"
                                 aria-label={`Partager le résultat ${examenNom(r.examenId)}`}
                                 className="px-2.5 h-7 rounded-lg bg-slate-100 hover:bg-emerald-100
                                   hover:text-emerald-700 text-slate-600 text-xs font-semibold
-                                  transition-colors whitespace-nowrap"
+                                  transition-colors whitespace-nowrap
+                                  disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                📤 Partager
+                                {sharing === r.id ? "..." : "📤 Partager"}
                               </button>
                             )}
                             {r.valideParMedecin ? (
@@ -498,6 +555,43 @@ export default function ResultatsPage() {
                   disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {busy ? "Validation..." : "Valider"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation de révocation des liens publics */}
+      {revokeCmd && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+              🔒
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">
+              Révoquer les liens partagés ?
+            </h3>
+            <p className="text-sm text-slate-500 text-center mb-6">
+              Les liens de consultation transmis à{" "}
+              {patientNom(revokeCmd.patientId)} cesseront immédiatement de
+              fonctionner. Vous pourrez en générer de nouveaux en repartageant.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRevokeCmd(null)}
+                className="flex-1 h-11 rounded-xl border border-slate-200
+                  text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => revoquerCommande(revokeCmd)}
+                disabled={!!busy}
+                className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-700
+                  text-white text-sm font-semibold transition-colors
+                  disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busy ? "Révocation..." : "Révoquer"}
               </button>
             </div>
           </div>
