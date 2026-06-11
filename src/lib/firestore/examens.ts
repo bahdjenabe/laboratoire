@@ -86,6 +86,18 @@ export async function getExamensByPatient(patientId: string): Promise<Examen[]> 
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Examen[];
 }
 
+// ── Récupérer tous les examens d'une commande ─────
+// La « clé » de commande est le commandeId. Repli sur l'examen seul pour les
+// examens anciens sans commandeId (leur clé est alors leur propre id).
+export async function getExamensByCommande(key: string): Promise<Examen[]> {
+  const q = query(collection(db, COLLECTION), where('commandeId', '==', key));
+  const snapshot = await getDocs(q);
+  const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Examen[];
+  if (list.length > 0) return list;
+  const single = await getExamen(key);
+  return single ? [single] : [];
+}
+
 // ── Mettre à jour un examen ───────────────────────
 export async function updateExamen(
   id: string,

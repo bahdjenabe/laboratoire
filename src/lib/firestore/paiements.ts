@@ -88,6 +88,17 @@ export async function getPaiementsByExamen(
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Paiement[];
 }
 
+// ── Récupérer les paiements d'une commande ────────
+// commandeId vaut l'examenId pour les paiements anciens : la requête couvre
+// donc aussi les commandes mono-examen sans commandeId dédié.
+export async function getPaiementsByCommande(
+  key: string
+): Promise<Paiement[]> {
+  const q = query(collection(db, COLLECTION), where('commandeId', '==', key));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Paiement[];
+}
+
 // ── Mettre à jour un paiement ─────────────────────
 export async function updatePaiement(
   id: string,

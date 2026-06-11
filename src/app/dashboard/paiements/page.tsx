@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { usePaiements } from "@/hooks/usePaiements";
 import { useExamens } from "@/hooks/useExamens";
 import { usePatients } from "@/hooks/usePatients";
@@ -92,6 +93,7 @@ export default function PaiementsPage() {
   const { examens } = useExamens();
   const { patients } = usePatients();
   const { user } = useAuth();
+  const router = useRouter();
 
   const [filtre, setFiltre] = useState<"tous" | "paye" | "non_paye">("tous");
   const [search, setSearch] = useState("");
@@ -146,13 +148,21 @@ export default function PaiementsPage() {
   // Lien profond depuis la page Examens (?commande=KEY) : ouvre le formulaire
   // avec la commande déjà sélectionnée pour l'encaisser groupée.
   const [pendingCommande, setPendingCommande] = useState<string | null>(null);
+  // Vrai si on arrive via le bouton « Encaisser » (lien profond ?commande=).
+  // Dans ce cas, après un encaissement payé, on ouvre la feuille de la commande
+  // pour saisir les résultats (la cible est dérivée de la commande payée).
+  const [cameFromDeepLink, setCameFromDeepLink] = useState(false);
   useEffect(() => {
     const k = new URLSearchParams(window.location.search).get("commande");
-    if (k) setPendingCommande(k);
+    if (k) {
+      setPendingCommande(k);
+      setCameFromDeepLink(true);
+    }
   }, []);
   useEffect(() => {
     if (!pendingCommande) return;
-    if (commandesAFacturer.some((c) => c.key === pendingCommande)) {
+    const cmd = commandesAFacturer.find((c) => c.key === pendingCommande);
+    if (cmd) {
       setSelectedKey(pendingCommande);
       setCreateMode(MODES[0]);
       setCreateDetail("");
@@ -258,6 +268,13 @@ export default function PaiementsPage() {
         })),
       );
       setShowForm(false);
+      // Encaissement payé via lien profond (bouton Encaisser) → ouvrir la
+      // feuille de la commande pour saisir les résultats.
+      if (cameFromDeepLink && createStatut === "paye") {
+        router.push(
+          `/dashboard/commandes/${encodeURIComponent(selectedCommande.key)}`,
+        );
+      }
     } catch (err) {
       setFormError("Erreur lors de l'enregistrement. Réessayez.");
       console.error(err);

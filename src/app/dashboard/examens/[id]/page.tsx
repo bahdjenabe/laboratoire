@@ -136,15 +136,20 @@ export default function ExamenDetailPage() {
     load();
   }, [load]);
 
+  // Démarrer = marquer l'examen « en cours » puis ouvrir la feuille de la
+  // commande (saisie groupée de tous les examens du même patient).
   const handleDemarrer = async () => {
     if (!examen) return;
     setUpdating(true);
     try {
-      await updateStatutExamen(examen.id, "en_cours");
-      setExamen({ ...examen, statut: "en_cours" });
+      if (examen.statut === "en_attente") {
+        await updateStatutExamen(examen.id, "en_cours");
+      }
+      router.push(
+        `/dashboard/commandes/${encodeURIComponent(examen.commandeId ?? examen.id)}`,
+      );
     } catch (err) {
       console.error(err);
-    } finally {
       setUpdating(false);
     }
   };

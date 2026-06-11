@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useExamens } from "@/hooks/useExamens";
+import { usePaiements } from "@/hooks/usePaiements";
 import { usePatients } from "@/hooks/usePatients";
 import { useCatalogue } from "@/hooks/useCatalogue";
 import { useAuth } from "@/context/AuthContext";
@@ -68,6 +69,7 @@ const onActivate =
 
 export default function ExamensPage() {
   const { examens, loading, addExamens, removeExamen } = useExamens();
+  const { paiements } = usePaiements();
   const { patients } = usePatients();
   const { catalogue, loading: catalogueLoading } = useCatalogue();
   const { user } = useAuth();
@@ -135,6 +137,16 @@ export default function ExamensPage() {
     const p = patientsMap.get(patientId);
     return p ? `${p.prenom} ${p.nom}` : "Patient inconnu";
   };
+
+  // Examens disposant d'un paiement encaissé (statut « payé »). Sert à savoir
+  // si une commande est prête à démarrer (bouton Démarrer au lieu d'Encaisser).
+  const examensPayes = useMemo(
+    () =>
+      new Set(
+        paiements.filter((p) => p.statut === "paye").map((p) => p.examenId),
+      ),
+    [paiements],
+  );
 
   const filtered = examens.filter((e) => {
     if (filtre !== "tous" && e.statut !== filtre) return false;
@@ -410,6 +422,8 @@ export default function ExamensPage() {
           pageItems.map((cmd, idx) => {
             const conf = STATUT_CONFIG[cmd.statut];
             const isOpen = expanded.has(cmd.key);
+            // Commande prête à démarrer : tous ses examens sont payés.
+            const cmdPayee = cmd.exams.every((e) => examensPayes.has(e.id));
             const groupIds = cmd.exams.map((e) => e.id);
             const groupSelected =
               estAdmin && groupIds.every((id) => selected.has(id));
@@ -492,23 +506,45 @@ export default function ExamensPage() {
                 {/* Examens de la commande (dépliés) */}
                 {isOpen && (
                   <div className="bg-slate-50/60">
-                    {/* Action groupée : encaisser toute la commande en attente */}
+                    {/* Action groupée : encaisser la commande, ou la démarrer
+                        une fois payée (le démarrage requiert le paiement). */}
                     {peutGerer && cmd.statut === "en_attente" && (
                       <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-slate-100">
-                        <span className="text-xs text-slate-500">
-                          Total à encaisser : {formatGNF(cmd.total)}
-                        </span>
-                        <button
-                          onClick={() =>
-                            router.push(
-                              `/dashboard/paiements?commande=${encodeURIComponent(cmd.key)}`,
-                            )
-                          }
-                          className="px-3 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700
-                            text-white text-xs font-semibold transition-colors whitespace-nowrap"
-                        >
-                          💳 Encaisser la commande
-                        </button>
+                        {cmdPayee ? (
+                          <>
+                            <span className="text-xs font-medium text-emerald-600">
+                              ✓ Payée — prête à démarrer
+                            </span>
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/dashboard/commandes/${encodeURIComponent(cmd.key)}`,
+                                )
+                              }
+                              className="px-3 h-8 rounded-lg bg-slate-900 hover:bg-slate-800
+                                text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                            >
+                              ▶ Démarrer
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs text-slate-500">
+                              Total à encaisser : {formatGNF(cmd.total)}
+                            </span>
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/dashboard/paiements?commande=${encodeURIComponent(cmd.key)}`,
+                                )
+                              }
+                              className="px-3 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                                text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                            >
+                              💳 Encaisser la commande
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                     {cmd.exams.map((examen) => {
