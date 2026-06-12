@@ -133,6 +133,75 @@ export default function PatientsPage() {
   const getInitiales = (p: Patient) =>
     `${p.prenom[0] ?? ""}${p.nom[0] ?? ""}`.toUpperCase();
 
+  // État « aucun patient » partagé par le tableau (desktop) et les cartes (mobile).
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center py-16">
+      <span className="text-5xl mb-4">{vue === "archives" ? "🗄️" : "👤"}</span>
+      <p className="text-slate-600 font-semibold text-base mb-1">
+        {search
+          ? "Aucun résultat trouvé"
+          : vue === "archives"
+            ? "Aucun patient archivé"
+            : "Aucun patient enregistré"}
+      </p>
+      <p className="text-slate-400 text-sm mb-5">
+        {search
+          ? "Essayez avec d'autres termes de recherche"
+          : vue === "archives"
+            ? "Les patients archivés apparaîtront ici"
+            : "Commencez par ajouter votre premier patient"}
+      </p>
+      {!search && vue === "actifs" && peutGerer && (
+        <button
+          onClick={() => router.push("/dashboard/patients/nouveau")}
+          className="px-4 py-2 bg-emerald-600 text-white text-sm
+            font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+        >
+          + Ajouter un patient
+        </button>
+      )}
+    </div>
+  );
+
+  // Boutons d'action (modifier / archiver / restaurer) — réutilisés dans les
+  // deux mises en page. `stopPropagation` géré par le conteneur appelant.
+  const rowActions = (patient: Patient) =>
+    peutGerer ? (
+      <>
+        <button
+          onClick={() => router.push(`/dashboard/patients/${patient.id}/modifier`)}
+          className="w-8 h-8 flex items-center justify-center rounded-lg
+            bg-slate-100 hover:bg-blue-100 hover:text-blue-600
+            text-slate-500 transition-colors text-sm"
+        >
+          ✏️
+        </button>
+        {estAdmin && vue === "actifs" && (
+          <button
+            onClick={() => setConfirmArchive(patient)}
+            title="Archiver"
+            className="w-8 h-8 flex items-center justify-center rounded-lg
+              bg-slate-100 hover:bg-amber-100 hover:text-amber-600
+              text-slate-500 transition-colors text-sm"
+          >
+            📥
+          </button>
+        )}
+        {estAdmin && vue === "archives" && (
+          <button
+            onClick={() => handleRestore(patient.id)}
+            disabled={busyId === patient.id}
+            title="Restaurer"
+            className="w-8 h-8 flex items-center justify-center rounded-lg
+              bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600
+              text-slate-500 transition-colors text-sm disabled:opacity-50"
+          >
+            ♻️
+          </button>
+        )}
+      </>
+    ) : null;
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -231,8 +300,8 @@ export default function PatientsPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+      {/* Table (desktop) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         {/* Header table */}
         <div
           className="grid grid-cols-12 min-w-[760px] px-5 py-3 bg-slate-50
@@ -287,32 +356,7 @@ export default function PatientsPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-5xl mb-4">{vue === "archives" ? "🗄️" : "👤"}</span>
-            <p className="text-slate-600 font-semibold text-base mb-1">
-              {search
-                ? "Aucun résultat trouvé"
-                : vue === "archives"
-                  ? "Aucun patient archivé"
-                  : "Aucun patient enregistré"}
-            </p>
-            <p className="text-slate-400 text-sm mb-5">
-              {search
-                ? "Essayez avec d'autres termes de recherche"
-                : vue === "archives"
-                  ? "Les patients archivés apparaîtront ici"
-                  : "Commencez par ajouter votre premier patient"}
-            </p>
-            {!search && vue === "actifs" && peutGerer && (
-              <button
-                onClick={() => router.push("/dashboard/patients/nouveau")}
-                className="px-4 py-2 bg-emerald-600 text-white text-sm
-                  font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
-              >
-                + Ajouter un patient
-              </button>
-            )}
-          </div>
+          emptyState
         ) : (
           pageItems.map((patient, idx) => (
             <div
@@ -389,46 +433,87 @@ export default function PatientsPage() {
                 className="col-span-2 flex items-center justify-end gap-2"
                 onClick={(e) => e.stopPropagation()}
               >
-                {peutGerer ? (
-                  <>
-                    <button
-                      onClick={() =>
-                        router.push(
-                          `/dashboard/patients/${patient.id}/modifier`,
-                        )
-                      }
-                      className="w-8 h-8 flex items-center justify-center rounded-lg
-                        bg-slate-100 hover:bg-blue-100 hover:text-blue-600
-                        text-slate-500 transition-colors text-sm"
-                    >
-                      ✏️
-                    </button>
-                    {estAdmin && vue === "actifs" && (
-                      <button
-                        onClick={() => setConfirmArchive(patient)}
-                        title="Archiver"
-                        className="w-8 h-8 flex items-center justify-center rounded-lg
-                          bg-slate-100 hover:bg-amber-100 hover:text-amber-600
-                          text-slate-500 transition-colors text-sm"
-                      >
-                        📥
-                      </button>
-                    )}
-                    {estAdmin && vue === "archives" && (
-                      <button
-                        onClick={() => handleRestore(patient.id)}
-                        disabled={busyId === patient.id}
-                        title="Restaurer"
-                        className="w-8 h-8 flex items-center justify-center rounded-lg
-                          bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600
-                          text-slate-500 transition-colors text-sm disabled:opacity-50"
-                      >
-                        ♻️
-                      </button>
-                    )}
-                  </>
-                ) : (
+                {rowActions(patient) ?? (
                   <span className="text-xs text-slate-300">—</span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Cartes (mobile) */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-24 bg-white rounded-2xl border border-slate-100 animate-pulse"
+            />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            {emptyState}
+          </div>
+        ) : (
+          pageItems.map((patient) => (
+            <div
+              key={patient.id}
+              onClick={() => router.push(`/dashboard/patients/${patient.id}`)}
+              className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4
+                cursor-pointer hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {estAdmin && (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(patient.id)}
+                    onChange={() => toggle(patient.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                  />
+                )}
+                <div
+                  className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700
+                  flex items-center justify-center text-sm font-bold flex-shrink-0"
+                >
+                  {getInitiales(patient)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {patient.prenom} {patient.nom}
+                  </p>
+                  <p className="text-xs text-slate-400 truncate">
+                    {patient.numero && (
+                      <span className="font-mono text-emerald-600">
+                        {patient.numero}
+                      </span>
+                    )}
+                    {patient.numero && " · "}
+                    {patient.telephone}
+                  </p>
+                </div>
+                <div
+                  className="flex items-center gap-2 flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {rowActions(patient)}
+                </div>
+              </div>
+
+              {/* Détails */}
+              <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+                <span className="text-slate-500">
+                  {getAge(patient.dateNaissance)} ·{" "}
+                  {patient.sexe === "M" ? "Masculin" : "Feminin"}
+                </span>
+                {patient.groupeSanguin && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full font-semibold bg-red-50 text-red-600 border border-red-100">
+                    {patient.groupeSanguin}
+                  </span>
+                )}
+                {patient.email && (
+                  <span className="text-slate-400 truncate">{patient.email}</span>
                 )}
               </div>
             </div>
