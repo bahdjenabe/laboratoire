@@ -124,8 +124,17 @@ export async function POST(request: NextRequest) {
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error("Resend a renvoyé une erreur :", res.status, detail);
+      // On remonte le message de Resend : la route est réservée au personnel
+      // authentifié, et ce détail est indispensable pour diagnostiquer
+      // (domaine non vérifié, expéditeur refusé, clé invalide, etc.).
+      let reason = detail;
+      try {
+        reason = JSON.parse(detail)?.message ?? detail;
+      } catch {
+        /* detail n'est pas du JSON, on le garde tel quel */
+      }
       return NextResponse.json(
-        { error: "L'envoi a échoué côté service e-mail." },
+        { error: `Resend a refusé l'envoi : ${reason || res.status}` },
         { status: 502 },
       );
     }
