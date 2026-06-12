@@ -342,7 +342,7 @@ export default function FeuilleCommandePage() {
               )}
             </div>
 
-            <div className="grid grid-cols-12 gap-3 px-1 mb-2">
+            <div className="hidden sm:grid grid-cols-12 gap-3 px-1 mb-2">
               <span className="col-span-6 text-xs font-semibold text-slate-400 uppercase tracking-wide">
                 Paramètre
               </span>
@@ -351,9 +351,12 @@ export default function FeuilleCommandePage() {
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3 sm:space-y-2">
               {f.valeurs.map((l, li) => (
-                <div key={li} className="grid grid-cols-12 gap-3 items-center">
+                <div
+                  key={li}
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 sm:items-center"
+                >
                   <input
                     value={l.param}
                     onChange={(e) => setLigne(fi, li, "param", e.target.value)}
