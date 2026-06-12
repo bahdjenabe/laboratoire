@@ -57,3 +57,23 @@ export function emailUrl(
   const subject = `Résultat d'analyse - ${examenNom}`;
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
 }
+
+// Envoi automatique de l'e-mail via l'API serveur (Resend). Contrairement à
+// emailUrl (qui ouvre le client mail du personnel), ceci envoie réellement le
+// message au patient. Renvoie { ok } ou lève une Error avec un message lisible.
+export async function sendResultEmail(params: {
+  to: string;
+  prenom: string;
+  examenLabel: string;
+  lien: string;
+}): Promise<void> {
+  const res = await fetch("/api/notify/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error ?? "L'envoi de l'e-mail a échoué.");
+  }
+}

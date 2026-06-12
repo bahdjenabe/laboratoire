@@ -5,7 +5,7 @@ import {
   buildMessage,
   whatsappUrl,
   smsUrl,
-  emailUrl,
+  sendResultEmail,
 } from "@/lib/notify";
 import type { Patient } from "@/types";
 
@@ -15,8 +15,12 @@ interface Props {
   lien: string;
 }
 
+type EmailState = "idle" | "sending" | "sent" | "error";
+
 export default function PatientNotify({ patient, examenNom, lien }: Props) {
   const [copied, setCopied] = useState(false);
+  const [emailState, setEmailState] = useState<EmailState>("idle");
+  const [emailError, setEmailError] = useState("");
 
   const message = buildMessage(patient.prenom, examenNom, lien);
   const hasTel = !!patient.telephone;
@@ -29,6 +33,25 @@ export default function PatientNotify({ patient, examenNom, lien }: Props) {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       window.prompt("Copiez le lien du patient :", lien);
+    }
+  };
+
+  const envoyerEmail = async () => {
+    if (!patient.email || emailState === "sending") return;
+    setEmailState("sending");
+    setEmailError("");
+    try {
+      await sendResultEmail({
+        to: patient.email,
+        prenom: patient.prenom,
+        examenLabel: examenNom,
+        lien,
+      });
+      setEmailState("sent");
+      setTimeout(() => setEmailState("idle"), 4000);
+    } catch (err) {
+      setEmailState("error");
+      setEmailError(err instanceof Error ? err.message : "Échec de l'envoi.");
     }
   };
 
@@ -88,19 +111,28 @@ export default function PatientNotify({ patient, examenNom, lien }: Props) {
         >
           💬 SMS
         </a>
-        <a
-          href={hasEmail ? emailUrl(patient.email!, examenNom, message) : undefined}
-          aria-disabled={!hasEmail}
+        <button
+          type="button"
+          onClick={envoyerEmail}
+          disabled={!hasEmail || emailState === "sending"}
           className={`flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold transition-colors
             ${
               hasEmail
-                ? "bg-violet-600 hover:bg-violet-700 text-white"
-                : "bg-slate-100 text-slate-400 pointer-events-none"
+                ? "bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-70"
+                : "bg-slate-100 text-slate-400 cursor-not-allowed"
             }`}
         >
-          ✉️ Email
-        </a>
+          {emailState === "sending"
+            ? "Envoi…"
+            : emailState === "sent"
+              ? "✓ Envoyé"
+              : "✉️ Email"}
+        </button>
       </div>
+
+      {emailState === "error" && (
+        <p className="text-xs text-red-500 mt-3">{emailError}</p>
+      )}
 
       {(!hasTel || !hasEmail) && (
         <p className="text-xs text-slate-400 mt-3">
