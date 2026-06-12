@@ -67,8 +67,10 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. Vérifier la configuration serveur.
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM;
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  // Nettoyage défensif : espaces et guillemets parfois ajoutés par erreur en
+  // collant la valeur dans Vercel ("Nom <email>" → guillemets invalides pour Resend).
+  const from = process.env.RESEND_FROM?.trim().replace(/^["']|["']$/g, "");
   if (!apiKey || !from) {
     return NextResponse.json(
       { error: "Service e-mail non configuré (RESEND_API_KEY / RESEND_FROM)." },
