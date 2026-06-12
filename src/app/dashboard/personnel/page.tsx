@@ -164,6 +164,25 @@ export default function PersonnelPage() {
     }
   };
 
+  // État « aucun membre » partagé tableau (desktop) / cartes (mobile).
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center py-16">
+      <span className="text-5xl mb-4">👥</span>
+      <p className="text-slate-600 font-semibold text-base mb-1">
+        Aucun membre du personnel
+      </p>
+      <p className="text-slate-400 text-sm mb-5">
+        Ajoutez les membres de votre équipe
+      </p>
+      <button
+        onClick={openCreate}
+        className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+      >
+        + Ajouter un membre
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -198,8 +217,8 @@ export default function PersonnelPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+      {/* Table (desktop) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div
           className="grid grid-cols-12 min-w-[680px] px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
@@ -238,21 +257,7 @@ export default function PersonnelPage() {
             ))}
           </div>
         ) : staff.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-5xl mb-4">👥</span>
-            <p className="text-slate-600 font-semibold text-base mb-1">
-              Aucun membre du personnel
-            </p>
-            <p className="text-slate-400 text-sm mb-5">
-              Ajoutez les membres de votre équipe
-            </p>
-            <button
-              onClick={openCreate}
-              className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
-            >
-              + Ajouter un membre
-            </button>
-          </div>
+          emptyState
         ) : (
           pageItems.map((membre, idx) => {
             const isSelf = membre.uid === user?.uid;
@@ -314,6 +319,87 @@ export default function PersonnelPage() {
                         ? "Vous ne pouvez pas vous supprimer"
                         : "Supprimer"
                     }
+                    className="w-8 h-8 flex items-center justify-center rounded-lg
+                      bg-slate-100 hover:bg-red-100 hover:text-red-600
+                      text-slate-500 transition-colors text-sm
+                      disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-100 disabled:hover:text-slate-500"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Cartes (mobile) */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-20 bg-white rounded-2xl border border-slate-100 animate-pulse"
+            />
+          ))
+        ) : staff.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            {emptyState}
+          </div>
+        ) : (
+          pageItems.map((membre) => {
+            const isSelf = membre.uid === user?.uid;
+            return (
+              <div
+                key={membre.uid}
+                className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(membre.uid)}
+                    onChange={() => toggle(membre.uid)}
+                    disabled={isSelf}
+                    title={isSelf ? "Vous ne pouvez pas vous retirer" : undefined}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0
+                      disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {`${membre.prenom?.[0] ?? ""}${membre.nom?.[0] ?? ""}`.toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {membre.prenom} {membre.nom}
+                      {isSelf && (
+                        <span className="ml-1 text-xs text-slate-400 font-normal">
+                          (vous)
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {membre.email}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${ROLE_COLORS[membre.role]}`}
+                  >
+                    {ROLE_LABELS[membre.role]}
+                  </span>
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-50 flex justify-end gap-2">
+                  <button
+                    onClick={() => openEdit(membre)}
+                    aria-label="Modifier"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg
+                      bg-slate-100 hover:bg-blue-100 hover:text-blue-600
+                      text-slate-500 transition-colors text-sm"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    onClick={() => setShowConfirm(membre)}
+                    disabled={isSelf}
+                    aria-label="Supprimer"
                     className="w-8 h-8 flex items-center justify-center rounded-lg
                       bg-slate-100 hover:bg-red-100 hover:text-red-600
                       text-slate-500 transition-colors text-sm

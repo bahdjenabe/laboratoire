@@ -155,6 +155,38 @@ export default function CataloguePage() {
     }
   };
 
+  // État « catalogue vide » partagé tableau (desktop) / cartes (mobile).
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center py-16">
+      <span className="text-5xl mb-4">🔬</span>
+      <p className="text-slate-600 font-semibold text-base mb-1">
+        {search ? "Aucun résultat" : "Catalogue vide"}
+      </p>
+      <p className="text-slate-400 text-sm mb-5">
+        {search
+          ? "Essayez un autre terme"
+          : "Ajoutez les examens proposés par le laboratoire"}
+      </p>
+      {!search && (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            {seeding ? "Ajout..." : "✨ Ajouter les examens par défaut"}
+          </button>
+          <button
+            onClick={openCreate}
+            className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+          >
+            + Ajouter un examen
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -219,8 +251,8 @@ export default function CataloguePage() {
         />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+      {/* Table (desktop) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div
           className="grid grid-cols-12 min-w-[560px] px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
@@ -246,34 +278,7 @@ export default function CataloguePage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-5xl mb-4">🔬</span>
-            <p className="text-slate-600 font-semibold text-base mb-1">
-              {search ? "Aucun résultat" : "Catalogue vide"}
-            </p>
-            <p className="text-slate-400 text-sm mb-5">
-              {search
-                ? "Essayez un autre terme"
-                : "Ajoutez les examens proposés par le laboratoire"}
-            </p>
-            {!search && (
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <button
-                  onClick={handleSeed}
-                  disabled={seeding}
-                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
-                >
-                  {seeding ? "Ajout..." : "✨ Ajouter les examens par défaut"}
-                </button>
-                <button
-                  onClick={openCreate}
-                  className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
-                >
-                  + Ajouter un examen
-                </button>
-              </div>
-            )}
-          </div>
+          emptyState
         ) : (
           pageItems.map((item, idx) => (
             <div
@@ -307,6 +312,61 @@ export default function CataloguePage() {
                 <button
                   onClick={() => setShowConfirm(item)}
                   title="Supprimer"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg
+                    bg-slate-100 hover:bg-red-100 hover:text-red-600
+                    text-slate-500 transition-colors text-sm"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Cartes (mobile) */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          [...Array(5)].map((_, i) => (
+            <div
+              key={i}
+              className="h-16 bg-white rounded-2xl border border-slate-100 animate-pulse"
+            />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            {emptyState}
+          </div>
+        ) : (
+          pageItems.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center gap-3"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-base flex-shrink-0">
+                🔬
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-900 truncate">
+                  {item.nom}
+                </p>
+                <p className="text-sm font-medium text-slate-500">
+                  {formatGNF(item.prix)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => openEdit(item)}
+                  aria-label="Modifier"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg
+                    bg-slate-100 hover:bg-blue-100 hover:text-blue-600
+                    text-slate-500 transition-colors text-sm"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => setShowConfirm(item)}
+                  aria-label="Supprimer"
                   className="w-8 h-8 flex items-center justify-center rounded-lg
                     bg-slate-100 hover:bg-red-100 hover:text-red-600
                     text-slate-500 transition-colors text-sm"
