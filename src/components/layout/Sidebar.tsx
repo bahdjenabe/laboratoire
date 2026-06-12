@@ -84,7 +84,13 @@ const ROLE_COLORS: Record<Role, string> = {
   technicien: "bg-blue-100 text-blue-700",
 };
 
-export default function Sidebar() {
+interface SidebarProps {
+  // Tiroir ouvert (mobile). Sur desktop la sidebar est toujours visible.
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -106,10 +112,20 @@ export default function Sidebar() {
   };
 
   return (
-    <aside
-      className="fixed top-0 left-0 h-screen w-64 bg-slate-900
-      flex flex-col z-40 overflow-hidden"
-    >
+    <>
+      {/* Fond sombre (mobile uniquement) quand le tiroir est ouvert */}
+      <div
+        onClick={onClose}
+        aria-hidden
+        className={`fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300
+          ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      />
+
+      <aside
+        className={`fixed top-0 left-0 h-screen w-64 bg-slate-900
+          flex flex-col z-50 overflow-hidden transform transition-transform duration-300
+          lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      >
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800 flex-shrink-0">
         <div
@@ -141,6 +157,7 @@ export default function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onClose}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-xl
                     text-sm font-medium transition-all duration-150
                     ${
@@ -198,6 +215,7 @@ export default function Sidebar() {
           Se deconnecter
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

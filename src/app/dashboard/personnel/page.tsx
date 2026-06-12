@@ -199,9 +199,9 @@ export default function PersonnelPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div
-          className="grid grid-cols-12 px-5 py-3 bg-slate-50
+          className="grid grid-cols-12 min-w-[680px] px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
           <div className="col-span-5 flex items-center gap-3">
@@ -368,7 +368,7 @@ export default function PersonnelPage() {
               noValidate
               className="p-6 space-y-4"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className={labelCls}>Prénom *</label>
                   <input
@@ -497,7 +497,7 @@ export default function PersonnelPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className={labelCls}>Prénom *</label>
                   <input

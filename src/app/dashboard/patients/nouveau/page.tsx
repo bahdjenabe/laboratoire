@@ -116,7 +116,7 @@ export default function NouveauPatientPage() {
             Informations personnelles
           </h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className={labelCls}>Prénom *</label>
               <input
@@ -141,7 +141,7 @@ export default function NouveauPatientPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className={labelCls}>Date de naissance *</label>
               <input
@@ -184,7 +184,7 @@ export default function NouveauPatientPage() {
             Coordonnées
           </h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className={labelCls}>Téléphone *</label>
               <input

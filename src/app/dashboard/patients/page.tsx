@@ -232,10 +232,10 @@ export default function PatientsPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         {/* Header table */}
         <div
-          className="grid grid-cols-12 px-5 py-3 bg-slate-50
+          className="grid grid-cols-12 min-w-[760px] px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
         >
           <div className="col-span-4 flex items-center gap-3">

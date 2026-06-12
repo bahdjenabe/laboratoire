@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
@@ -14,11 +14,20 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
+  // Tiroir de navigation (mobile). Toujours « fermé » sur desktop où la
+  // sidebar est fixe.
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Referme le tiroir à chaque changement de page (navigation mobile).
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (mounted && !loading && !user) {
@@ -30,10 +39,10 @@ export default function DashboardLayout({
   if (!mounted) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="fixed top-0 left-0 h-screen w-64 bg-slate-900 z-40" />
-        <div className="fixed top-0 left-64 right-0 h-16 bg-white border-b border-slate-200 z-30" />
-        <main className="ml-64 pt-16 min-h-screen">
-          <div className="p-6" />
+        <div className="hidden lg:block fixed top-0 left-0 h-screen w-64 bg-slate-900 z-40" />
+        <div className="fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white border-b border-slate-200 z-30" />
+        <main className="ml-0 lg:ml-64 pt-16 min-h-screen">
+          <div className="p-4 sm:p-6" />
         </main>
       </div>
     );
@@ -61,10 +70,10 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-slate-50">
       <IdleLogout />
-      <Sidebar />
-      <Header />
-      <main className="ml-64 pt-16 min-h-screen">
-        <div className="p-6">{children}</div>
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
+      <Header onMenu={() => setNavOpen(true)} />
+      <main className="ml-0 lg:ml-64 pt-16 min-h-screen">
+        <div className="p-4 sm:p-6">{children}</div>
       </main>
     </div>
   );

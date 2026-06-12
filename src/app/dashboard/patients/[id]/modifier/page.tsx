@@ -194,7 +194,7 @@ export default function ModifierPatientPage() {
             Informations personnelles
           </h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className={labelCls}>Prénom *</label>
               <input {...register("prenom")} className={inputCls} />
@@ -211,7 +211,7 @@ export default function ModifierPatientPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className={labelCls}>Date de naissance *</label>
               <input
@@ -254,7 +254,7 @@ export default function ModifierPatientPage() {
             Coordonnées
           </h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className={labelCls}>Téléphone *</label>
               <input {...register("telephone")} className={inputCls} />

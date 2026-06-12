@@ -20,7 +20,7 @@ const PAGE_TITLES: Record<string, { title: string; sub: string }> = {
   "/dashboard/personnel": { title: "Personnel", sub: "Gestion de l'equipe" },
 };
 
-export default function Header() {
+export default function Header({ onMenu }: { onMenu?: () => void }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const router = useRouter();
@@ -49,16 +49,26 @@ export default function Header() {
 
   return (
     <header
-      className="fixed top-0 left-64 right-0 h-16 bg-white
+      className="fixed top-0 left-0 lg:left-64 right-0 h-16 bg-white
       border-b border-slate-200 flex items-center justify-between
-      px-6 z-30"
+      px-4 sm:px-6 z-30"
     >
-      {/* Titre */}
-      <div>
-        <h1 className="text-base font-bold text-slate-900 leading-tight">
-          {page.title}
-        </h1>
-        <p className="text-xs text-slate-400">{page.sub}</p>
+      {/* Gauche : bouton menu (mobile) + titre */}
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          onClick={onMenu}
+          aria-label="Ouvrir le menu"
+          className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center
+            rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+        >
+          ☰
+        </button>
+        <div className="min-w-0">
+          <h1 className="text-base font-bold text-slate-900 leading-tight truncate">
+            {page.title}
+          </h1>
+          <p className="text-xs text-slate-400 truncate">{page.sub}</p>
+        </div>
       </div>
 
       {/* Droite */}
