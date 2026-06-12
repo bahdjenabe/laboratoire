@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -296,8 +297,16 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* Accès patient : pré-inscription en ligne (sans compte) */}
+          <Link
+            href="/pre-inscription"
+            className="block mt-8 text-center text-sm font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+          >
+            👤 Vous êtes patient ? Pré-inscrivez-vous en ligne →
+          </Link>
+
           {/* Footer */}
-          <div className="flex items-center justify-center gap-2 mt-10 pt-6 border-t border-slate-100">
+          <div className="flex items-center justify-center gap-2 mt-6 pt-6 border-t border-slate-100">
             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
             <span className="text-xs text-slate-400">
               LabMédical © 2025 · Système sécurisé

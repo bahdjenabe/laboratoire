@@ -18,6 +18,9 @@ const ROLE_ALLOWED_PATHS: Record<Role, string[]> = {
 // de la liste des résultats est réservée au médecin et à l'admin.
 const ROLE_DENIED_PATHS: Partial<Record<Role, string[]>> = {
   technicien: ['/dashboard/resultats'],
+  // Les pré-inscriptions sont une tâche d'accueil (admin/technicien) ; le
+  // médecin ne traite pas l'enregistrement des patients.
+  medecin: ['/dashboard/pre-inscriptions'],
 };
 
 export async function middleware(request: NextRequest) {

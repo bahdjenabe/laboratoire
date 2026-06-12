@@ -31,6 +31,25 @@ export const patientSchema = z.object({
 });
 export type PatientInput = z.infer<typeof patientSchema>;
 
+// ── Pré-inscription patient (formulaire public, sans compte) ──
+// Le patient ne saisit que son identité + une note libre. Le choix des
+// analyses se fait au laboratoire, à la confirmation.
+export const preInscriptionSchema = z.object({
+  prenom: z.string().trim().min(1, "Le prénom est requis"),
+  nom: z.string().trim().min(1, "Le nom est requis"),
+  dateNaissance: z.string().min(1, "La date de naissance est requise"),
+  sexe: z.enum(["M", "F", "Autre"]),
+  telephone: z.string().trim().min(6, "Numéro de téléphone invalide"),
+  email: z
+    .string()
+    .trim()
+    .email("Adresse e-mail invalide")
+    .optional()
+    .or(z.literal("")),
+  note: z.string().trim().max(500, "Note trop longue").optional(),
+});
+export type PreInscriptionInput = z.infer<typeof preInscriptionSchema>;
+
 // ── Catalogue d'examens (géré par l'admin) ────────
 export const catalogueExamenSchema = z.object({
   nom: z.string().trim().min(1, "Le nom de l'examen est requis"),

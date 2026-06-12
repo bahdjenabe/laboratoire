@@ -105,6 +105,33 @@ export interface PublicResultat {
   }[];
 }
 
+// Pré-inscription patient en ligne (formulaire public, sans compte).
+// Le patient saisit seulement son identité ; le laboratoire confirme avec
+// l'ordonnance papier, choisit les analyses et crée la commande.
+// L'id du document EST le token (≈192 bits), comme public_resultats.
+export type StatutPreInscription = 'en_attente' | 'confirmee' | 'rejetee';
+
+export interface PreInscription {
+  token: string; // = id du document
+  // Code court lisible dérivé du token (ex: "A3F9C1") pour l'accueil.
+  ref: string;
+  nom: string;
+  prenom: string;
+  dateNaissance: Date;
+  sexe: 'M' | 'F' | 'Autre';
+  telephone: string;
+  email?: string;
+  // Note libre facultative du patient (ex: « bilan sanguin prescrit »).
+  note?: string;
+  statut: StatutPreInscription;
+  createdAt: Date;
+  // Renseignés par le laboratoire à la confirmation.
+  patientId?: string;
+  commandeId?: string;
+  confirmeAt?: Date;
+  confirmePar?: string; // uid du membre du personnel
+}
+
 export interface Paiement {
   id: string;
   patientId: string;

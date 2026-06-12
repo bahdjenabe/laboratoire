@@ -68,6 +68,31 @@ service cloud.firestore {
         if hasRole('admin') || hasRole('medecin');
     }
 
+    // Pré-inscriptions patients (formulaire public, sans compte).
+    // L'id du document est un token (~192 bits) qui sert de secret pour le
+    // suivi public. La création est ouverte au public mais strictement
+    // validée ; la confirmation/rejet relèvent du personnel d'accueil.
+    match /preinscriptions/{token} {
+      // Suivi public par token (get) ; pas d'énumération (list = personnel).
+      allow get: if true;
+      allow list: if isAuth();
+      // Création publique : seulement une demande « en attente », champs
+      // d'identité requis, et aucune référence interne injectée.
+      allow create: if
+        request.resource.data.statut == 'en_attente'
+        && request.resource.data.prenom is string
+        && request.resource.data.prenom.size() > 0
+        && request.resource.data.nom is string
+        && request.resource.data.nom.size() > 0
+        && request.resource.data.telephone is string
+        && request.resource.data.telephone.size() >= 6
+        && request.resource.data.sexe in ['M', 'F', 'Autre']
+        && !('patientId' in request.resource.data)
+        && !('commandeId' in request.resource.data);
+      // Confirmer / rejeter : admin ou technicien (accueil).
+      allow update, delete: if hasRole('admin') || hasRole('technicien');
+    }
+
     match /paiements/{id} {
       allow read: if isAuth();
       // Encaissement : admin ou technicien (accueil).

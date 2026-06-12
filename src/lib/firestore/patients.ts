@@ -38,18 +38,28 @@ async function allocateNumero(year: number): Promise<string> {
   return `P-${year}-${String(seq).padStart(4, '0')}`;
 }
 
-// ── Créer un patient ──────────────────────────────
-// Retourne le matricule attribué (ex: P-2026-0042).
-export async function createPatient(
+// ── Créer un patient (renvoie l'id Firestore + le matricule) ──
+// Utile quand l'appelant doit enchaîner sur le patient créé (ex: rattacher
+// une commande d'examens lors de la confirmation d'une pré-inscription).
+export async function createPatientWithId(
   data: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>
-): Promise<string> {
+): Promise<{ id: string; numero: string }> {
   const numero = await allocateNumero(new Date().getFullYear());
-  await addDoc(collection(db, COLLECTION), {
+  const ref = await addDoc(collection(db, COLLECTION), {
     ...data,
     numero,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  return { id: ref.id, numero };
+}
+
+// ── Créer un patient ──────────────────────────────
+// Retourne le matricule attribué (ex: P-2026-0042).
+export async function createPatient(
+  data: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string> {
+  const { numero } = await createPatientWithId(data);
   return numero;
 }
 

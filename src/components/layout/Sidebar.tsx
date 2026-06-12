@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import PreInscriptionBadge from "@/components/PreInscriptionBadge";
 import type { Role } from "@/types";
 
 interface NavItem {
@@ -19,6 +20,13 @@ const NAV_ITEMS: NavItem[] = [
     href: "/dashboard/dashboard",
     icon: "▦",
     roles: ["admin", "medecin", "technicien"],
+  },
+  {
+    // Demandes de pré-inscription en ligne à confirmer (tâche d'accueil).
+    label: "Pré-inscriptions",
+    href: "/dashboard/pre-inscriptions",
+    icon: "📝",
+    roles: ["admin", "technicien"],
   },
   {
     // Gestion des patients : saisie réservée à l'admin et au technicien.
@@ -145,6 +153,9 @@ export default function Sidebar() {
                     {item.icon}
                   </span>
                   <span>{item.label}</span>
+                  {item.href === "/dashboard/pre-inscriptions" && (
+                    <PreInscriptionBadge />
+                  )}
                   {isActive && (
                     <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/80" />
                   )}
