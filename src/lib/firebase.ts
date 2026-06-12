@@ -20,4 +20,7 @@ export const storage = getStorage(app);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  // Ignore les champs `undefined` au lieu de lever une erreur (ex: email/
+  // adresse non renseignés à la création d'un patient). Sinon addDoc échoue.
+  ignoreUndefinedProperties: true,
 });
