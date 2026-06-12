@@ -388,6 +388,32 @@ export default function PaiementsPage() {
     );
   }
 
+  // État « aucun paiement » partagé tableau (desktop) / cartes (mobile).
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center py-16">
+      <span className="text-5xl mb-4">💳</span>
+      <p className="text-slate-600 font-semibold text-base mb-1">
+        {search || filtre !== "tous"
+          ? "Aucun résultat"
+          : "Aucun paiement enregistré"}
+      </p>
+      <p className="text-slate-400 text-sm mb-5">
+        {search || filtre !== "tous"
+          ? "Essayez d'autres critères"
+          : "Enregistrez le paiement d'une commande"}
+      </p>
+      {!search && filtre === "tous" && (
+        <button
+          onClick={openForm}
+          className="px-4 py-2 bg-emerald-600 text-white text-sm
+            font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+        >
+          + Enregistrer un paiement
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -479,8 +505,8 @@ export default function PaiementsPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+      {/* Table (desktop) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div
           className="grid grid-cols-12 min-w-[760px] px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
@@ -523,28 +549,7 @@ export default function PaiementsPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-5xl mb-4">💳</span>
-            <p className="text-slate-600 font-semibold text-base mb-1">
-              {search || filtre !== "tous"
-                ? "Aucun résultat"
-                : "Aucun paiement enregistré"}
-            </p>
-            <p className="text-slate-400 text-sm mb-5">
-              {search || filtre !== "tous"
-                ? "Essayez d'autres critères"
-                : "Enregistrez le paiement d'une commande"}
-            </p>
-            {!search && filtre === "tous" && (
-              <button
-                onClick={openForm}
-                className="px-4 py-2 bg-emerald-600 text-white text-sm
-                  font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
-              >
-                + Enregistrer un paiement
-              </button>
-            )}
-          </div>
+          emptyState
         ) : (
           pageItems.map((cmd, idx) => {
             const conf = STATUT_CMD[cmd.statut];
@@ -718,6 +723,169 @@ export default function PaiementsPage() {
                             {p.statut === "paye" ? "✓ Payé" : "Non payé"}
                           </button>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Cartes (mobile) */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-24 bg-white rounded-2xl border border-slate-100 animate-pulse"
+            />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            {emptyState}
+          </div>
+        ) : (
+          pageItems.map((cmd) => {
+            const conf = STATUT_CMD[cmd.statut];
+            const isOpen = expanded.has(cmd.key);
+            const groupIds = cmd.paiements.map((p) => p.id);
+            const groupSelected =
+              estAdmin && groupIds.every((id) => selected.has(id));
+            const refPaie = cmd.paiements[0];
+            return (
+              <div
+                key={cmd.key}
+                className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+              >
+                {/* En-tête (tap = déplier) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  onClick={() => toggleExpand(cmd.key)}
+                  onKeyDown={onActivate(() => toggleExpand(cmd.key))}
+                  className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                >
+                  {estAdmin && (
+                    <input
+                      type="checkbox"
+                      checked={groupSelected}
+                      onChange={(e) => setMany(groupIds, e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Sélectionner la commande"
+                      className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {patientNom(cmd.patientId)}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {cmd.paiements.length} examen
+                      {cmd.paiements.length > 1 ? "s" : ""} ·{" "}
+                      {refPaie.modePaiement ?? "—"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleStatutCommande(cmd);
+                    }}
+                    disabled={busy === cmd.key}
+                    className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 disabled:opacity-50 ${conf.cls}`}
+                  >
+                    {conf.label}
+                  </button>
+                  <span
+                    aria-hidden
+                    className="text-slate-400 text-xs w-3 flex-shrink-0"
+                  >
+                    {isOpen ? "▾" : "▸"}
+                  </span>
+                </div>
+
+                {/* Date + montant + actions */}
+                <div className="px-4 pb-3 -mt-1 flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-x-4 text-xs text-slate-500">
+                    <span>{formatDate(cmd.createdAt)}</span>
+                    <span className="font-semibold text-slate-700">
+                      {formatGNF(cmd.montantTotal)}
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-center gap-1.5 flex-shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => openEdit(cmd)}
+                      aria-label="Modifier le paiement"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg
+                        bg-slate-100 hover:bg-blue-100 hover:text-blue-600
+                        text-slate-500 transition-colors text-sm"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleRecu(cmd)}
+                      disabled={busy === cmd.key}
+                      aria-label="Télécharger le reçu"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg
+                        bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600
+                        text-slate-500 transition-colors text-sm disabled:opacity-50"
+                    >
+                      🧾
+                    </button>
+                    {estAdmin && (
+                      <button
+                        onClick={() => setShowConfirm(cmd)}
+                        aria-label="Supprimer le paiement"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg
+                          bg-slate-100 hover:bg-red-100 hover:text-red-600
+                          text-slate-500 transition-colors text-sm"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Paiements (dépliés) */}
+                {isOpen && (
+                  <div className="bg-slate-50/60 border-t border-slate-100">
+                    {cmd.paiements.map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-2 px-4 py-2.5 border-t border-slate-100 first:border-t-0"
+                      >
+                        {estAdmin && (
+                          <input
+                            type="checkbox"
+                            checked={selected.has(p.id)}
+                            onChange={() => toggle(p.id)}
+                            aria-label={`Sélectionner le paiement ${examenNom(p.examenId)}`}
+                            className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                          />
+                        )}
+                        <span className="text-sm text-slate-700 truncate flex-1">
+                          {examenNom(p.examenId)}
+                        </span>
+                        <span className="text-sm text-slate-600 flex-shrink-0">
+                          {formatGNF(p.montant)}
+                        </span>
+                        <button
+                          onClick={() => toggleStatutPaiement(p)}
+                          disabled={busy === p.id}
+                          className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 transition-colors disabled:opacity-50
+                            ${
+                              p.statut === "paye"
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                : "bg-red-100 text-red-700 hover:bg-red-200"
+                            }`}
+                        >
+                          {p.statut === "paye" ? "✓ Payé" : "Non payé"}
+                        </button>
                       </div>
                     ))}
                   </div>

@@ -252,6 +252,21 @@ export default function ResultatsPage() {
     }
   };
 
+  // État « aucun résultat » partagé tableau (desktop) / cartes (mobile).
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center py-16">
+      <span className="text-5xl mb-4">📋</span>
+      <p className="text-slate-600 font-semibold text-base mb-1">
+        {search || filtre !== "tous" ? "Aucun résultat" : "Aucun résultat saisi"}
+      </p>
+      <p className="text-slate-400 text-sm">
+        {search || filtre !== "tous"
+          ? "Essayez d'autres critères"
+          : "Les résultats se saisissent depuis la fiche d'un examen"}
+      </p>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -298,8 +313,8 @@ export default function ResultatsPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+      {/* Table (desktop) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div
           className="grid grid-cols-12 min-w-[760px] px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
@@ -327,19 +342,7 @@ export default function ResultatsPage() {
             ))}
           </div>
         ) : commandes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-5xl mb-4">📋</span>
-            <p className="text-slate-600 font-semibold text-base mb-1">
-              {search || filtre !== "tous"
-                ? "Aucun résultat"
-                : "Aucun résultat saisi"}
-            </p>
-            <p className="text-slate-400 text-sm">
-              {search || filtre !== "tous"
-                ? "Essayez d'autres critères"
-                : "Les résultats se saisissent depuis la fiche d'un examen"}
-            </p>
-          </div>
+          emptyState
         ) : (
           pageItems.map((cmd, idx) => {
             const conf = STATUT_CMD[cmd.statut];
@@ -501,6 +504,170 @@ export default function ResultatsPage() {
                               </span>
                             )}
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Cartes (mobile) */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-20 bg-white rounded-2xl border border-slate-100 animate-pulse"
+            />
+          ))
+        ) : commandes.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            {emptyState}
+          </div>
+        ) : (
+          pageItems.map((cmd) => {
+            const conf = STATUT_CMD[cmd.statut];
+            const isOpen = expanded.has(cmd.key);
+            const hasActions =
+              (peutValider && cmd.nbAValider > 0) ||
+              cmd.resultats.some((r) => r.valideParMedecin) ||
+              (peutValider && cmd.resultats.some((r) => r.token));
+            return (
+              <div
+                key={cmd.key}
+                className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+              >
+                {/* En-tête (tap = déplier) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  onClick={() => toggleExpand(cmd.key)}
+                  onKeyDown={onActivate(() => toggleExpand(cmd.key))}
+                  className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                >
+                  <div
+                    aria-hidden
+                    className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600
+                    flex items-center justify-center text-base flex-shrink-0"
+                  >
+                    📋
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {patientNom(cmd.patientId)}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {cmd.resultats.length} examen
+                      {cmd.resultats.length > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${conf.cls}`}
+                  >
+                    {conf.label}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="text-slate-400 text-xs w-3 flex-shrink-0"
+                  >
+                    {isOpen ? "▾" : "▸"}
+                  </span>
+                </div>
+
+                {/* Actions de la commande */}
+                {hasActions && (
+                  <div className="px-4 pb-3 -mt-1 flex flex-wrap gap-2">
+                    {peutValider && cmd.nbAValider > 0 && (
+                      <button
+                        onClick={() => setConfirmCmd(cmd)}
+                        disabled={busy === cmd.key}
+                        className="px-3 h-9 rounded-lg bg-blue-600 hover:bg-blue-700
+                          text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {busy === cmd.key
+                          ? "Validation..."
+                          : `✔ Valider (${cmd.nbAValider})`}
+                      </button>
+                    )}
+                    {cmd.resultats.some((r) => r.valideParMedecin) && (
+                      <button
+                        onClick={() => ouvrirPartageCommande(cmd)}
+                        disabled={sharing === cmd.key}
+                        className="px-3 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                          text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {sharing === cmd.key ? "Préparation..." : "📤 Partager"}
+                      </button>
+                    )}
+                    {peutValider && cmd.resultats.some((r) => r.token) && (
+                      <button
+                        onClick={() => setRevokeCmd(cmd)}
+                        disabled={busy === cmd.key}
+                        className="px-3 h-9 rounded-lg border border-red-200 text-red-600
+                          hover:bg-red-50 text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        🔒 Révoquer
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Résultats (dépliés) */}
+                {isOpen && (
+                  <div className="bg-slate-50/60 border-t border-slate-100">
+                    {cmd.resultats.map((r) => {
+                      const nbValeurs = Object.keys(r.valeurs ?? {}).length;
+                      return (
+                        <div
+                          key={r.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() =>
+                            router.push(`/dashboard/examens/${r.examenId}`)
+                          }
+                          onKeyDown={onActivate(() =>
+                            router.push(`/dashboard/examens/${r.examenId}`),
+                          )}
+                          className="flex items-center gap-2 px-4 py-2.5 border-t border-slate-100 first:border-t-0
+                            hover:bg-white transition-colors cursor-pointer"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-slate-700 truncate">
+                              {examenNom(r.examenId)}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {nbValeurs} paramètre{nbValeurs > 1 ? "s" : ""}
+                            </p>
+                          </div>
+                          {r.valideParMedecin && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                partagerResultat(r);
+                              }}
+                              disabled={sharing === r.id}
+                              aria-label="Partager le résultat"
+                              className="px-2.5 h-7 rounded-lg bg-slate-100 hover:bg-emerald-100
+                                hover:text-emerald-700 text-slate-600 text-xs font-semibold
+                                flex-shrink-0 disabled:opacity-50"
+                            >
+                              {sharing === r.id ? "..." : "📤"}
+                            </button>
+                          )}
+                          {r.valideParMedecin ? (
+                            <span className="inline-flex text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700 flex-shrink-0">
+                              ✓ Validé
+                            </span>
+                          ) : (
+                            <span className="inline-flex text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700 flex-shrink-0">
+                              À valider
+                            </span>
+                          )}
                         </div>
                       );
                     })}

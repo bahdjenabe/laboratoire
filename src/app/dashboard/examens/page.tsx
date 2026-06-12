@@ -282,6 +282,32 @@ export default function ExamensPage() {
     }
   };
 
+  // État « aucun examen » partagé tableau (desktop) / cartes (mobile).
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center py-16">
+      <span className="text-5xl mb-4">🔬</span>
+      <p className="text-slate-600 font-semibold text-base mb-1">
+        {search || filtre !== "tous"
+          ? "Aucun résultat"
+          : "Aucun examen enregistré"}
+      </p>
+      <p className="text-slate-400 text-sm mb-5">
+        {search || filtre !== "tous"
+          ? "Essayez d'autres critères"
+          : "Commencez par créer votre premier examen"}
+      </p>
+      {!search && filtre === "tous" && peutGerer && (
+        <button
+          onClick={openForm}
+          className="px-4 py-2 bg-emerald-600 text-white text-sm
+            font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
+        >
+          + Créer un examen
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -354,8 +380,8 @@ export default function ExamensPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+      {/* Table (desktop) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
         <div
           className="grid grid-cols-12 min-w-[760px] px-5 py-3 bg-slate-50
           border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider"
@@ -396,28 +422,7 @@ export default function ExamensPage() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <span className="text-5xl mb-4">🔬</span>
-            <p className="text-slate-600 font-semibold text-base mb-1">
-              {search || filtre !== "tous"
-                ? "Aucun résultat"
-                : "Aucun examen enregistré"}
-            </p>
-            <p className="text-slate-400 text-sm mb-5">
-              {search || filtre !== "tous"
-                ? "Essayez d'autres critères"
-                : "Commencez par créer votre premier examen"}
-            </p>
-            {!search && filtre === "tous" && peutGerer && (
-              <button
-                onClick={openForm}
-                className="px-4 py-2 bg-emerald-600 text-white text-sm
-                  font-semibold rounded-xl hover:bg-emerald-700 transition-colors"
-              >
-                + Créer un examen
-              </button>
-            )}
-          </div>
+          emptyState
         ) : (
           pageItems.map((cmd, idx) => {
             const conf = STATUT_CONFIG[cmd.statut];
@@ -611,6 +616,190 @@ export default function ExamensPage() {
                               </button>
                             )}
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Cartes (mobile) */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-20 bg-white rounded-2xl border border-slate-100 animate-pulse"
+            />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            {emptyState}
+          </div>
+        ) : (
+          pageItems.map((cmd) => {
+            const conf = STATUT_CONFIG[cmd.statut];
+            const isOpen = expanded.has(cmd.key);
+            const cmdPayee = cmd.exams.every((e) => examensPayes.has(e.id));
+            const groupIds = cmd.exams.map((e) => e.id);
+            const groupSelected =
+              estAdmin && groupIds.every((id) => selected.has(id));
+            return (
+              <div
+                key={cmd.key}
+                className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+              >
+                {/* En-tête (tap = déplier) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  onClick={() => toggleExpand(cmd.key)}
+                  onKeyDown={onActivate(() => toggleExpand(cmd.key))}
+                  className="p-4 flex items-center gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                >
+                  {estAdmin && (
+                    <input
+                      type="checkbox"
+                      checked={groupSelected}
+                      onChange={(e) => setMany(groupIds, e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Sélectionner la commande"
+                      className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                    />
+                  )}
+                  <div
+                    aria-hidden
+                    className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600
+                    flex items-center justify-center text-base flex-shrink-0"
+                  >
+                    🔬
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {cmd.exams.length} examen{cmd.exams.length > 1 ? "s" : ""}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {patientNom(cmd.patientId)}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${conf.cls}`}
+                  >
+                    {conf.label}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="text-slate-400 text-xs w-3 flex-shrink-0"
+                  >
+                    {isOpen ? "▾" : "▸"}
+                  </span>
+                </div>
+
+                {/* Date + total */}
+                <div className="px-4 pb-3 -mt-1 flex flex-wrap gap-x-4 text-xs text-slate-500">
+                  <span>{formatDate(cmd.createdAt)}</span>
+                  <span className="font-semibold text-slate-700">
+                    {formatGNF(cmd.total)}
+                  </span>
+                </div>
+
+                {/* Examens (dépliés) */}
+                {isOpen && (
+                  <div className="bg-slate-50/60 border-t border-slate-100">
+                    {peutGerer && cmd.statut === "en_attente" && (
+                      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        {cmdPayee ? (
+                          <>
+                            <span className="text-xs font-medium text-emerald-600">
+                              ✓ Payée — prête à démarrer
+                            </span>
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/dashboard/commandes/${encodeURIComponent(cmd.key)}`,
+                                )
+                              }
+                              className="px-3 h-8 rounded-lg bg-slate-900 hover:bg-slate-800
+                                text-white text-xs font-semibold whitespace-nowrap"
+                            >
+                              ▶ Démarrer
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs text-slate-500">
+                              À encaisser : {formatGNF(cmd.total)}
+                            </span>
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/dashboard/paiements?commande=${encodeURIComponent(cmd.key)}`,
+                                )
+                              }
+                              className="px-3 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                                text-white text-xs font-semibold whitespace-nowrap"
+                            >
+                              💳 Encaisser
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {cmd.exams.map((examen) => {
+                      const sc = STATUT_CONFIG[examen.statut];
+                      return (
+                        <div
+                          key={examen.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() =>
+                            router.push(`/dashboard/examens/${examen.id}`)
+                          }
+                          onKeyDown={onActivate(() =>
+                            router.push(`/dashboard/examens/${examen.id}`),
+                          )}
+                          className="flex items-center gap-2 px-4 py-2.5 border-t border-slate-100
+                            hover:bg-white transition-colors cursor-pointer"
+                        >
+                          {estAdmin && (
+                            <input
+                              type="checkbox"
+                              checked={selected.has(examen.id)}
+                              onChange={() => toggle(examen.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 accent-emerald-600 cursor-pointer flex-shrink-0"
+                            />
+                          )}
+                          <span className="text-sm text-slate-700 truncate flex-1">
+                            {examen.nomExamen}
+                          </span>
+                          <span
+                            className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${sc.cls}`}
+                          >
+                            {sc.label}
+                          </span>
+                          <span className="text-sm text-slate-600 flex-shrink-0">
+                            {formatGNF(examen.prix)}
+                          </span>
+                          {peutGerer && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                askDelete(examen.id);
+                              }}
+                              aria-label="Supprimer"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg
+                                bg-slate-100 hover:bg-red-100 hover:text-red-600
+                                text-slate-500 text-xs flex-shrink-0"
+                            >
+                              🗑️
+                            </button>
+                          )}
                         </div>
                       );
                     })}
