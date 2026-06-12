@@ -15,6 +15,7 @@ import { useExamens } from "@/hooks/useExamens";
 import { useAuth } from "@/context/AuthContext";
 import {
   findPatientDuplicate,
+  normalizePhone,
   createPatientWithId,
   restorePatient,
 } from "@/lib/firestore/patients";
@@ -91,6 +92,17 @@ export default function PreInscriptionsPage() {
         .reduce((s, c) => s + (c.prix || 0), 0),
     [catalogue, selectedIds],
   );
+
+  // Nombre de demandes en attente par téléphone normalisé → détecte deux
+  // pré-inscriptions concurrentes pour le même numéro (doublon probable).
+  const phoneCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of preinscriptions) {
+      const k = normalizePhone(p.telephone);
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [preinscriptions]);
 
   // Demandes filtrées par la recherche (code, nom/prénom ou téléphone).
   const filtered = useMemo(() => {
@@ -325,6 +337,15 @@ export default function PreInscriptionsPage() {
       ) : (
         filtered.map((pre) => {
           const actif = activeToken === pre.token;
+          // Patient déjà connu (même téléphone/email) → la confirmation
+          // rattachera la commande à ce dossier au lieu d'en créer un.
+          const dejaExistant = findPatientDuplicate(patients, {
+            telephone: pre.telephone,
+            email: pre.email,
+          });
+          // Deux demandes en attente avec le même numéro = doublon probable.
+          const doublonEnAttente =
+            (phoneCounts.get(normalizePhone(pre.telephone)) ?? 0) > 1;
           return (
             <div
               key={pre.token}
@@ -361,6 +382,31 @@ export default function PreInscriptionsPage() {
               {pre.note && (
                 <div className="mt-3 rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800">
                   📝 {pre.note}
+                </div>
+              )}
+
+              {/* Alerte : patient déjà existant (rattachement) */}
+              {dejaExistant && (
+                <div className="mt-3 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-sm text-blue-800">
+                  ⚠️ Patient déjà existant
+                  {dejaExistant.patient.numero
+                    ? ` — ${dejaExistant.patient.numero}`
+                    : ""}{" "}
+                  ({dejaExistant.patient.prenom} {dejaExistant.patient.nom}).
+                  La confirmation rattachera la commande à ce dossier
+                  {dejaExistant.patient.archive
+                    ? " (dossier archivé : il sera restauré)"
+                    : ""}
+                  .
+                </div>
+              )}
+
+              {/* Alerte : autre demande en attente avec le même numéro */}
+              {doublonEnAttente && (
+                <div className="mt-3 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">
+                  ⚠️ Une autre demande en attente porte le même numéro —
+                  vérifiez s&apos;il s&apos;agit d&apos;un doublon avant de
+                  confirmer.
                 </div>
               )}
 
