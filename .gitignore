@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# vidéos de démonstration générées (lourdes, non versionnées)
+/docs/video/
+
 # vercel
 .vercel
 
