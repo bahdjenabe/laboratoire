@@ -133,7 +133,7 @@ export default function LoginPage() {
           {/* Rôles */}
           <div className="relative z-10 space-y-2.5">
             <p className="text-slate-600 text-[10px] uppercase tracking-[3px] mb-3">
-              Profils d'accès
+              Profils d&apos;accès
             </p>
             {(
               [

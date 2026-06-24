@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
-<title>Cahier des charges — LabMédical</title>
+<title>CAHIER-DES-CHARGES — LabMédical</title>
 <style>
   @page { size: A4; margin: 18mm 16mm; }
   * { box-sizing: border-box; }
@@ -50,11 +50,11 @@
 </tr>
 <tr>
 <td>Version du document</td>
-<td>1.0</td>
+<td>1.2</td>
 </tr>
 <tr>
 <td>Date</td>
-<td>2026-06-08</td>
+<td>2026-06-24</td>
 </tr>
 <tr>
 <td>Auteur</td>
@@ -71,6 +71,31 @@
 <tr>
 <td>Dépôt</td>
 <td><code>github.com/bahdjenabe/laboratoire</code></td>
+</tr>
+</tbody></table>
+<h3>Historique des révisions</h3>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Date</th>
+<th>Évolutions</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1.0</td>
+<td>2026-06-08</td>
+<td>Version initiale.</td>
+</tr>
+<tr>
+<td>1.1</td>
+<td>2026-06-09</td>
+<td>Matricule patient unique (P-AAAA-NNNN) + recherche par numéro ; archivage des patients (suppression douce) au lieu de suppression définitive ; unicité téléphone/email ; création d&#39;examen par saisie obligatoire du matricule ; modes de paiement détaillés (réseau carte / opérateur mobile / banque) + référence de transaction + édition d&#39;un paiement ; pagination des listes (5/page) et sélection multiple ; portail patient enrichi (démographie + PDF officiel téléchargeable) ; cachet &amp; signature par défaut sur les PDF ; déconnexion auto portée à 2 h (avertissement 2 min) ; durcissement RG-06 (interdiction de modifier son propre rôle, admin inclus).</td>
+</tr>
+<tr>
+<td>1.2</td>
+<td>2026-06-24</td>
+<td><strong>Mise en conformité du document avec l&#39;application livrée.</strong> Catalogue d&#39;examens géré par l&#39;admin (prix repris automatiquement) ; <strong>commandes groupées</strong> (plusieurs examens saisis/encaissés ensemble : un reçu, une feuille de saisie, un lien patient regroupant les résultats) ; <strong>pré-inscription patient en ligne</strong> (formulaire public + suivi par token + traitement à l&#39;accueil) ; <strong>envoi automatique du résultat par e-mail</strong> (Resend) — l&#39;exclusion §2.2 est levée pour l&#39;e-mail ; interface <strong>responsive mobile</strong> (menu repliable, listes en cartes) — ENF-14 réalisé.</td>
 </tr>
 </tbody></table>
 <blockquote>
@@ -165,7 +190,8 @@ patient via un <strong>lien sécurisé</strong>.</li>
 </ul>
 <h3>2.2 Exclus (voir §15 — évolutions)</h3>
 <ul>
-<li>Envoi 100 % automatique des notifications (SMS/WhatsApp/e-mail).</li>
+<li>Envoi automatique <strong>SMS / WhatsApp</strong> (le partage SMS/WhatsApp reste manuel via
+message pré-rempli ; seul l&#39;<strong>e-mail</strong> est envoyé automatiquement — cf. EF-50).</li>
 <li>Espace patient authentifié.</li>
 <li>Comptabilité avancée / facturation fiscale.</li>
 <li>Application mobile native.</li>
@@ -219,7 +245,7 @@ patient via un <strong>lien sécurisé</strong>.</li>
 <td align="center">❌ (lecture)</td>
 </tr>
 <tr>
-<td>Supprimer un patient</td>
+<td>Archiver / restaurer un patient</td>
 <td align="center">✅</td>
 <td align="center">❌</td>
 <td align="center">❌</td>
@@ -267,6 +293,18 @@ patient via un <strong>lien sécurisé</strong>.</li>
 <td align="center">✅</td>
 </tr>
 <tr>
+<td>Gérer le <strong>catalogue</strong> d&#39;examens</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+<td align="center">❌</td>
+</tr>
+<tr>
+<td>Traiter les <strong>pré-inscriptions</strong></td>
+<td align="center">✅</td>
+<td align="center">✅</td>
+<td align="center">❌</td>
+</tr>
+<tr>
 <td>Gérer le personnel</td>
 <td align="center">✅</td>
 <td align="center">❌</td>
@@ -282,8 +320,9 @@ patient via un <strong>lien sécurisé</strong>.</li>
 <li><strong>EF-03</strong> — Contrôle d&#39;accès aux pages selon le rôle (redirection si interdit).</li>
 <li><strong>EF-04</strong> — Redirection post-connexion selon le rôle (médecin → file de
 validation des résultats).</li>
-<li><strong>EF-05</strong> — Déconnexion automatique après <strong>30 min d&#39;inactivité</strong>, avec une
-modale d&#39;avertissement <strong>1 min</strong> avant et possibilité de rester connecté.</li>
+<li><strong>EF-05</strong> — Déconnexion automatique après <strong>2 h d&#39;inactivité</strong>, avec une
+modale d&#39;avertissement <strong>2 min</strong> avant (compte à rebours) et possibilité de
+rester connecté.</li>
 <li><strong>EF-06</strong> — Déconnexion manuelle.</li>
 </ul>
 <h3>4.2 Tableau de bord</h3>
@@ -296,21 +335,39 @@ en cours), résultats validés, <strong>revenus du jour</strong>.</li>
 </ul>
 <h3>4.3 Gestion des patients</h3>
 <ul>
-<li><strong>EF-11</strong> — Liste des patients avec recherche (nom, prénom, téléphone, email).</li>
+<li><strong>EF-11</strong> — Liste des patients (vue Actifs / Archivés) avec recherche
+(<strong>matricule</strong>, nom, prénom, téléphone, email) et <strong>pagination (5/page)</strong>.</li>
 <li><strong>EF-12</strong> — Création d&#39;un patient (identité, date de naissance, sexe,
-téléphone, e-mail, adresse, groupe sanguin, antécédents).</li>
+téléphone, e-mail, adresse, groupe sanguin, antécédents). Un <strong>matricule
+unique</strong> est attribué automatiquement (cf. EF-41).</li>
 <li><strong>EF-13</strong> — Modification d&#39;un patient.</li>
-<li><strong>EF-14</strong> — Fiche patient : informations, <strong>historique des examens</strong> et <strong>des
-paiements</strong>, total payé.</li>
-<li><strong>EF-15</strong> — Suppression d&#39;un patient (admin), <strong>bloquée s&#39;il a des examens</strong>.</li>
+<li><strong>EF-14</strong> — Fiche patient : matricule, informations, <strong>historique des
+examens</strong> et <strong>des paiements</strong>, total payé.</li>
+<li><strong>EF-15</strong> — <strong>Archivage</strong> d&#39;un patient (admin) au lieu de suppression
+définitive : le dossier est masqué mais conservé, et <strong>restaurable</strong> (cf.
+EF-43). Possibilité d&#39;archiver/restaurer <strong>plusieurs patients à la fois</strong>
+(sélection par cases à cocher).</li>
+<li><strong>EF-41</strong> — <strong>Matricule patient</strong> au format <code>P-AAAA-NNNN</code> (année + séquence),
+unique, attribué à l&#39;enregistrement via un compteur Firestore transactionnel.
+Sert d&#39;identifiant métier ; jamais réattribué (cf. RG-09). Bouton admin pour
+attribuer un matricule aux patients antérieurs qui n&#39;en ont pas.</li>
+<li><strong>EF-42</strong> — <strong>Unicité</strong> : refus de créer/modifier un patient si le téléphone
+(comparaison sur les chiffres) ou l&#39;email (insensible à la casse) existe déjà.</li>
+<li><strong>EF-43</strong> — <strong>Restauration</strong> d&#39;un patient archivé (admin), individuelle ou en
+lot. Les patients archivés restent visibles sur les examens/paiements
+existants (historique préservé) mais ne sont pas proposés aux nouvelles
+saisies.</li>
 </ul>
 <h3>4.4 Gestion des examens</h3>
 <ul>
-<li><strong>EF-16</strong> — Liste des examens avec filtres par statut et recherche
-(examen ou patient).</li>
-<li><strong>EF-17</strong> — Création d&#39;un examen : <strong>sélection du patient par recherche</strong>
-(nom/téléphone, désambiguïsation par date de naissance et sexe), type d&#39;examen
-avec suggestions d&#39;analyses courantes, prix.</li>
+<li><strong>EF-16</strong> — Liste des examens avec filtres par statut, recherche
+(examen ou patient) et <strong>pagination (5/page)</strong>. Sélection multiple pour
+suppression groupée (admin).</li>
+<li><strong>EF-17</strong> — Création d&#39;un examen : <strong>saisie obligatoire du matricule du
+patient</strong> puis <strong>recherche explicite</strong> (aucune liste pendant la frappe) ; une
+fois le patient trouvé, sa fiche s&#39;affiche et le reste du formulaire se
+débloque (type d&#39;examen avec suggestions d&#39;analyses courantes, prix). Seuls
+les patients actifs sont sélectionnables.</li>
 <li><strong>EF-18</strong> — Suivi du statut : <code>en_attente</code> → <code>en_cours</code> → <code>terminé</code> → <code>validé</code>.</li>
 <li><strong>EF-19</strong> — Page détail : progression visuelle, infos patient, actions selon le
 rôle et le statut.</li>
@@ -327,33 +384,93 @@ paiement</strong>.</li>
 <li><strong>EF-25</strong> — Validation médicale (médecin/admin) → <code>validé</code> + horodatage.</li>
 <li><strong>EF-26</strong> — Un résultat validé n&#39;est plus modifiable.</li>
 <li><strong>EF-27</strong> — Liste des résultats (médecin/admin) avec filtre « À valider /
-Validés » et recherche.</li>
-<li><strong>EF-28</strong> — Génération PDF du rapport d&#39;analyse.</li>
+Validés », recherche et <strong>pagination (5/page)</strong>.</li>
+<li><strong>EF-28</strong> — Génération PDF du rapport d&#39;analyse (en-tête de marque, <strong>cachet
+et signature par défaut</strong> apposés sur les résultats validés).</li>
 </ul>
 <h3>4.6 Paiements</h3>
 <ul>
 <li><strong>EF-29</strong> — Encaissement (admin/technicien) : <strong>sélection de l&#39;examen par
 recherche</strong>, montant <strong>pré-rempli</strong> par le prix, mode de paiement, statut.</li>
-<li><strong>EF-30</strong> — Modes de paiement : Espèces, Mobile Money, Carte bancaire, Virement.</li>
-<li><strong>EF-31</strong> — Génération PDF du reçu.</li>
-<li><strong>EF-32</strong> — Suppression d&#39;un paiement (admin uniquement).</li>
+<li><strong>EF-30</strong> — Modes de paiement : Espèces, Mobile Money, Carte bancaire,
+Virement, avec un <strong>détail</strong> selon le mode (réseau de carte : Visa /
+Mastercard ; opérateur mobile : Orange Money / MTN MoMo… ; banque pour un
+virement) et une <strong>référence de transaction</strong> facultative (ID Mobile Money,
+n° d&#39;autorisation TPE…) pour le rapprochement comptable. <strong>Aucune donnée
+sensible</strong> (n° de carte, code confidentiel) n&#39;est saisie ni stockée.</li>
+<li><strong>EF-31</strong> — Génération PDF du reçu (en-tête de marque, <strong>cachet &amp; signature
+par défaut</strong>, mode + détail + référence).</li>
+<li><strong>EF-32</strong> — <strong>Modification</strong> d&#39;un paiement existant (montant, mode, détail,
+référence, statut) et <strong>suppression</strong> (admin uniquement, individuelle ou en
+lot). Liste paginée (5/page).</li>
 <li><strong>EF-33</strong> — Totaux : encaissé, en attente.</li>
 </ul>
 <h3>4.7 Personnel</h3>
 <ul>
-<li><strong>EF-34</strong> — Liste du personnel (admin).</li>
+<li><strong>EF-34</strong> — Liste du personnel (admin), paginée (5/page), avec sélection
+multiple pour suppression groupée (jamais soi-même).</li>
 <li><strong>EF-35</strong> — Création d&#39;un compte (email, mot de passe, rôle).</li>
-<li><strong>EF-36</strong> — Modification d&#39;un compte (dont le rôle, par l&#39;admin).</li>
+<li><strong>EF-36</strong> — Modification d&#39;un compte (dont le rôle, par l&#39;admin) ; <strong>un
+utilisateur ne peut pas modifier son propre rôle</strong>, admin inclus (cf. RG-06).</li>
 </ul>
 <h3>4.8 Portail patient</h3>
 <ul>
 <li><strong>EF-37</strong> — Consultation publique d&#39;un résultat <strong>validé</strong> via lien token,
 <strong>sans connexion</strong>.</li>
-<li><strong>EF-38</strong> — Affichage : patient, analyse, <strong>date de validation</strong>, valeurs,
-observations.</li>
-<li><strong>EF-39</strong> — Impression / enregistrement PDF côté patient.</li>
+<li><strong>EF-38</strong> — Affichage : patient (et sa démographie : âge, sexe, téléphone,
+groupe sanguin), analyse, <strong>date de validation</strong>, valeurs, observations.</li>
+<li><strong>EF-39</strong> — <strong>Téléchargement du PDF officiel</strong> (identique à celui du
+laboratoire, avec cachet &amp; signature) et impression côté patient.</li>
 <li><strong>EF-40</strong> — Partage du lien au patient via <strong>WhatsApp / SMS / e-mail</strong> (message
 pré-rempli) depuis la fiche examen, après validation.</li>
+</ul>
+<h3>4.9 Catalogue d&#39;examens</h3>
+<ul>
+<li><strong>EF-44</strong> — <strong>Catalogue des examens</strong> proposés par le laboratoire (nom + prix),
+géré par l&#39;<strong>administrateur</strong> : liste paginée (5/page), recherche, temps réel.</li>
+<li><strong>EF-45</strong> — Ajout / modification (prix) / retrait d&#39;un examen du catalogue.
+Bouton <strong>« Examens par défaut »</strong> : pré-remplit une sélection d&#39;analyses
+courantes (cf. §16.1) à ajuster.</li>
+<li><strong>EF-46</strong> — À la création d&#39;un examen patient, le <strong>prix est repris du
+catalogue</strong> (plus de saisie manuelle du tarif).</li>
+</ul>
+<h3>4.10 Commandes groupées</h3>
+<ul>
+<li><strong>EF-47</strong> — <strong>Commande</strong> : à la création, le technicien <strong>coche plusieurs
+examens</strong> du catalogue pour un même patient ; ils sont liés par un
+<code>commandeId</code> et apparaissent comme <strong>une seule ligne</strong> dans les listes
+(statut global = examen le moins avancé). Les examens antérieurs sans
+<code>commandeId</code> restent affichés individuellement (rétro-compatibilité).</li>
+<li><strong>EF-48</strong> — <strong>Encaissement groupé</strong> : un seul paiement (montant = total de la
+commande) et <strong>un seul reçu PDF</strong> pour toute la commande. Le sélecteur de
+paiement distingue les commandes par matricule + date/heure.</li>
+<li><strong>EF-49</strong> — <strong>Feuille de commande</strong> : page de <strong>saisie groupée des résultats</strong>
+des examens d&#39;une commande. Après validation, le patient reçoit <strong>un lien
+unique</strong> regroupant tous les résultats validés de la commande (snapshot public
+multi-examens, cf. §9).</li>
+</ul>
+<h3>4.11 Notification e-mail automatique</h3>
+<ul>
+<li><strong>EF-50</strong> — <strong>Envoi automatique du résultat par e-mail</strong> au patient (service
+<strong>Resend</strong>, appelé côté serveur depuis une route Next.js, sans Cloud
+Function). Réservé au personnel authentifié ; le message contient le lien
+sécurisé de consultation. Le partage <strong>SMS / WhatsApp</strong> reste manuel (EF-40).
+<em>(Nécessite <code>RESEND_API_KEY</code> et un expéditeur <code>RESEND_FROM</code> vérifié.)</em></li>
+</ul>
+<h3>4.12 Pré-inscription patient en ligne</h3>
+<ul>
+<li><strong>EF-51</strong> — <strong>Formulaire public de pré-inscription</strong> (sans connexion) : le futur
+patient saisit son identité (prénom, nom, date de naissance, sexe, téléphone,
+e-mail facultatif) et une note libre (ex. examens prescrits).</li>
+<li><strong>EF-52</strong> — Un <strong>token</strong> (~192 bits) est généré ; un <strong>code court lisible</strong>
+(6 caractères) en est dérivé pour l&#39;accueil. Le patient peut <strong>suivre le
+statut</strong> de sa demande via un lien public (<code>/pre-inscription/statut/[token]</code>).</li>
+<li><strong>EF-53</strong> — <strong>Traitement à l&#39;accueil</strong> (admin/technicien) : liste temps réel des
+demandes <strong>en attente</strong> (recherche par code/nom/téléphone, pagination). Alerte
+si le patient <strong>existe déjà</strong> ou si un <strong>doublon en attente</strong> est détecté.</li>
+<li><strong>EF-54</strong> — <strong>Confirmation</strong> : crée le dossier patient et la commande d&#39;examens
+via les flux existants, puis marque la demande <code>confirmée</code>. <strong>Rejet</strong> possible
+(doublon / spam / erreur) → statut <code>rejetée</code>.</li>
 </ul>
 <hr>
 <h2>5. Workflow métier</h2>
@@ -373,10 +490,17 @@ pré-rempli) depuis la fiche examen, après validation.</li>
 <li><strong>RG-02</strong> — Seul le médecin (ou l&#39;admin) valide un résultat ; le technicien ne
 valide jamais.</li>
 <li><strong>RG-03</strong> — Un résultat validé est figé (non modifiable).</li>
-<li><strong>RG-04</strong> — Un patient avec examens ne peut être supprimé.</li>
+<li><strong>RG-04</strong> — Un patient n&#39;est pas supprimé mais <strong>archivé</strong> (suppression
+douce) : dossier et historique conservés, restaurables à tout moment.</li>
 <li><strong>RG-05</strong> — Un examen avec résultat ou paiement ne peut être supprimé.</li>
-<li><strong>RG-06</strong> — Un utilisateur ne peut pas modifier son propre rôle.</li>
+<li><strong>RG-06</strong> — Un utilisateur ne peut pas modifier <strong>son propre rôle</strong> (admin
+inclus) ; un non-admin ne peut pas se promouvoir (imposé côté serveur).</li>
 <li><strong>RG-07</strong> — Le patient n&#39;a pas de compte : il consulte par lien sécurisé.</li>
+<li><strong>RG-08</strong> — Téléphone et email d&#39;un patient sont <strong>uniques</strong> (contrôle
+applicatif à la création et à la modification).</li>
+<li><strong>RG-09</strong> — Le matricule d&#39;un patient est <strong>unique et jamais réattribué</strong> ;
+l&#39;archivage/suppression d&#39;un patient ne libère pas son numéro (les trous de
+séquence sont normaux et préservent la traçabilité des documents émis).</li>
 </ul>
 <hr>
 <h2>7. Exigences non-fonctionnelles</h2>
@@ -402,8 +526,8 @@ consentement, archivage.)</em></li>
 </ul>
 <h3>7.3 Performance</h3>
 <ul>
-<li><strong>ENF-08</strong> — Affichage des listes fluide ; sélecteurs limités à 50 résultats
-affichés avec recherche.</li>
+<li><strong>ENF-08</strong> — Affichage des listes fluide : <strong>pagination (5/page)</strong> sur toutes
+les listes ; sélecteurs avec recherche (affichage limité au-delà d&#39;un seuil).</li>
 <li><strong>ENF-09</strong> — Chargement initial allégé (cache navigateur de session).</li>
 </ul>
 <h3>7.4 Ergonomie</h3>
@@ -417,7 +541,8 @@ chargement, confirmations, messages d&#39;erreur).</li>
 <li><strong>ENF-12</strong> — Application web accessible via navigateurs modernes (Chrome, Edge,
 Firefox, Safari).</li>
 <li><strong>ENF-13</strong> — Hébergement avec déploiement continu.</li>
-<li><strong>ENF-14</strong> — <em>(Évolution)</em> optimisation mobile (menu repliable).</li>
+<li><strong>ENF-14</strong> — ✅ Optimisation mobile : menu repliable (drawer), tableaux
+défilables et listes en cartes empilées sur petit écran.</li>
 </ul>
 <h3>7.6 Maintenabilité</h3>
 <ul>
@@ -458,6 +583,10 @@ centralisées (zod).</li>
 <td>jsPDF</td>
 </tr>
 <tr>
+<td>E-mail transactionnel</td>
+<td>Resend (API REST appelée par une route serveur Next.js)</td>
+</tr>
+<tr>
 <td>Hébergement front</td>
 <td>Vercel (CI/CD sur push GitHub)</td>
 </tr>
@@ -467,7 +596,8 @@ centralisées (zod).</li>
 </tr>
 </tbody></table>
 <ul>
-<li>Contrôle d&#39;accès aux routes : <strong>middleware</strong> (lecture d&#39;un cookie de session).</li>
+<li>Contrôle d&#39;accès aux routes : <strong>proxy</strong> Next.js 16 (<code>src/proxy.ts</code>, ex-
+<em>middleware</em>) qui lit un <strong>cookie de session JWT signé</strong>.</li>
 <li>Sécurité des données : <strong>règles Firestore</strong> déployées.</li>
 </ul>
 <hr>
@@ -475,21 +605,42 @@ centralisées (zod).</li>
 <h3><code>users</code></h3>
 <p><code>uid</code>, <code>email</code>, <code>nom</code>, <code>prenom</code>, <code>role</code> (admin|medecin|technicien), <code>createdAt</code>.</p>
 <h3><code>patients</code></h3>
-<p><code>id</code>, <code>nom</code>, <code>prenom</code>, <code>dateNaissance</code>, <code>sexe</code> (M|F|Autre), <code>telephone</code>,
-<code>email?</code>, <code>adresse?</code>, <code>groupeSanguin?</code>, <code>antecedents?</code>, <code>createdAt</code>.</p>
+<p><code>id</code>, <code>numero?</code> (matricule P-AAAA-NNNN), <code>nom</code>, <code>prenom</code>, <code>dateNaissance</code>,
+<code>sexe</code> (M|F|Autre), <code>telephone</code>, <code>email?</code>, <code>adresse?</code>, <code>groupeSanguin?</code>,
+<code>antecedents?</code>, <code>archive?</code>, <code>archiveAt?</code>, <code>createdAt</code>, <code>updatedAt</code>.</p>
+<h3><code>catalogue_examens</code></h3>
+<p><code>id</code>, <code>nom</code>, <code>prix</code>, <code>createdAt</code>, <code>updatedAt</code>. Catalogue des examens proposés
+(géré par l&#39;admin) ; source du prix à la création d&#39;un examen patient.</p>
 <h3><code>examens</code></h3>
-<p><code>id</code>, <code>patientId</code>, <code>nomExamen</code>, <code>technicienId?</code>, <code>medecinId?</code>,
+<p><code>id</code>, <code>patientId</code>, <code>nomExamen</code>, <code>commandeId?</code> (regroupement « commande »),
+<code>technicienId?</code>, <code>medecinId?</code>,
 <code>statut</code> (en_attente|en_cours|termine|valide), <code>prix</code>, <code>createdAt</code>, <code>updatedAt</code>.</p>
 <h3><code>resultats</code></h3>
 <p><code>id</code>, <code>examenId</code>, <code>patientId</code>, <code>valeurs</code> (clé→valeur), <code>observations?</code>,
 <code>valideParMedecin</code>, <code>valideAt?</code>, <code>token?</code>, <code>examenNom?</code>, <code>patientNom?</code>,
 <code>createdAt</code>.</p>
 <h3><code>paiements</code></h3>
-<p><code>id</code>, <code>patientId</code>, <code>examenId</code>, <code>montant</code>, <code>statut</code> (paye|non_paye),
-<code>modePaiement?</code>, <code>createdAt</code>.</p>
+<p><code>id</code>, <code>patientId</code>, <code>examenId</code>, <code>commandeId?</code> (encaissement groupé), <code>montant</code>,
+<code>statut</code> (paye|non_paye), <code>modePaiement?</code>, <code>detailPaiement?</code>,
+<code>referencePaiement?</code>, <code>createdAt</code>.</p>
 <h3><code>public_resultats/{token}</code></h3>
-<p><code>token</code>, <code>examenNom?</code>, <code>patientNom?</code>, <code>valeurs</code>, <code>observations?</code>, <code>valideAt</code>.
-<em>(Snapshot public figé, sans référence interne.)</em></p>
+<p><code>token</code>, <code>examenNom?</code>, <code>patientPrenom?</code>, <code>patientNom?</code>, <code>dateNaissance?</code>,
+<code>sexe?</code>, <code>telephone?</code>, <code>groupeSanguin?</code>, <code>valeurs</code>, <code>observations?</code>,
+<code>valideAt</code>, <code>ref?</code>, <code>examens?[]</code> (variante <strong>commande</strong> : un lien unique
+regroupant plusieurs examens validés — <code>{ examenNom?, valeurs, observations?, ref? }</code>).
+<em>(Snapshot public figé, sans référence interne ; enrichi de la démographie du
+patient pour le PDF officiel.)</em></p>
+<h3><code>preinscriptions/{token}</code></h3>
+<p><code>token</code> (= id), <code>ref</code> (code court lisible), <code>nom</code>, <code>prenom</code>, <code>dateNaissance</code>,
+<code>sexe</code>, <code>telephone</code>, <code>email?</code>, <code>note?</code>,
+<code>statut</code> (en_attente|confirmee|rejetee), <code>createdAt</code>, et à la confirmation :
+<code>patientId?</code>, <code>commandeId?</code>, <code>confirmeAt?</code>, <code>confirmePar?</code>.
+<em>(Demande créée sans authentification ; suivi public par token, traitement par
+le personnel.)</em></p>
+<h3><code>compteurs/{id}</code></h3>
+<p>Ex. <code>patients-2026</code> → <code>{ seq }</code>. Compteur séquentiel par année incrémenté en
+transaction pour attribuer les matricules patients. Lecture authentifiée,
+écriture personnel.</p>
 <hr>
 <h2>10. Inventaire des écrans</h2>
 <table>
@@ -532,13 +683,23 @@ centralisées (zod).</li>
 </tr>
 <tr>
 <td><code>/dashboard/examens</code></td>
-<td>Liste examens</td>
+<td>Liste examens (groupés par commande)</td>
 <td>Personnel</td>
 </tr>
 <tr>
 <td><code>/dashboard/examens/[id]</code></td>
 <td>Détail examen / saisie / validation</td>
 <td>Personnel</td>
+</tr>
+<tr>
+<td><code>/dashboard/commandes/[key]</code></td>
+<td>Feuille de commande (saisie groupée des résultats)</td>
+<td>Personnel</td>
+</tr>
+<tr>
+<td><code>/dashboard/catalogue</code></td>
+<td>Catalogue d&#39;examens (nom + prix)</td>
+<td>Admin</td>
 </tr>
 <tr>
 <td><code>/dashboard/resultats</code></td>
@@ -551,9 +712,24 @@ centralisées (zod).</li>
 <td>Admin, technicien</td>
 </tr>
 <tr>
+<td><code>/dashboard/pre-inscriptions</code></td>
+<td>Traitement des pré-inscriptions</td>
+<td>Admin, technicien</td>
+</tr>
+<tr>
 <td><code>/dashboard/personnel</code></td>
 <td>Gestion du personnel</td>
 <td>Admin</td>
+</tr>
+<tr>
+<td><code>/pre-inscription</code></td>
+<td>Formulaire de pré-inscription</td>
+<td>Public</td>
+</tr>
+<tr>
+<td><code>/pre-inscription/statut/[token]</code></td>
+<td>Suivi d&#39;une pré-inscription</td>
+<td>Public (lien)</td>
 </tr>
 <tr>
 <td><code>/patient-portal/[token]</code></td>
@@ -706,12 +882,15 @@ le passage commercial impose toutefois un plan payant (licence Vercel / Blaze).<
 <li>Code source (dépôt GitHub).</li>
 <li>Règles de sécurité Firestore.</li>
 <li>Présent cahier des charges.</li>
-<li><em>(À prévoir)</em> guide utilisateur par rôle, procédure de sauvegarde.</li>
+<li>✅ Guide d&#39;utilisation (<code>docs/GUIDE-UTILISATION.md</code>).</li>
+<li>✅ Checklist de recette T1→T10 (<code>docs/RECETTE.md</code>).</li>
+<li><em>(À prévoir)</em> procédure de sauvegarde / restauration.</li>
 </ul>
 <hr>
 <h2>15. Maintenance et évolutions futures</h2>
 <ol>
-<li><strong>Notifications automatiques</strong> (Twilio / API WhatsApp Business / SMTP).</li>
+<li><strong>Notifications automatiques SMS / WhatsApp</strong> (Twilio / API WhatsApp Business)
+— l&#39;envoi e-mail automatique (Resend) est déjà en place (cf. EF-50).</li>
 <li><strong>Espace patient authentifié</strong>.</li>
 <li><strong>Intégrité côté serveur</strong> (Cloud Functions pour les suppressions/cascades).</li>
 <li><strong>Optimisation mobile</strong> (menu repliable, ergonomie tactile).</li>
@@ -731,5 +910,5 @@ lipidique, Test de grossesse (β-HCG).</p>
 <p><code>en_attente</code> (créé), <code>en_cours</code> (analyse démarrée), <code>terminé</code> (résultat saisi),
 <code>validé</code> (approuvé par le médecin).</p>
 <hr>
-<p><em>Fin du document — Cahier des charges LabMédical v1.0 (2026-06-08).</em></p>
+<p><em>Fin du document — Cahier des charges LabMédical v1.2 (2026-06-24).</em></p>
 </body></html>

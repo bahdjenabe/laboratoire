@@ -9,8 +9,8 @@
 | Élément | Valeur |
 |---------|--------|
 | Projet | LabMédical |
-| Version du document | 1.1 |
-| Date | 2026-06-09 |
+| Version du document | 1.2 |
+| Date | 2026-06-24 |
 | Auteur | Équipe projet |
 | Statut | Référence |
 | Projet Firebase | `laboratoire-f8e84` |
@@ -22,6 +22,7 @@
 |---------|------|-----------|
 | 1.0 | 2026-06-08 | Version initiale. |
 | 1.1 | 2026-06-09 | Matricule patient unique (P-AAAA-NNNN) + recherche par numéro ; archivage des patients (suppression douce) au lieu de suppression définitive ; unicité téléphone/email ; création d'examen par saisie obligatoire du matricule ; modes de paiement détaillés (réseau carte / opérateur mobile / banque) + référence de transaction + édition d'un paiement ; pagination des listes (5/page) et sélection multiple ; portail patient enrichi (démographie + PDF officiel téléchargeable) ; cachet & signature par défaut sur les PDF ; déconnexion auto portée à 2 h (avertissement 2 min) ; durcissement RG-06 (interdiction de modifier son propre rôle, admin inclus). |
+| 1.2 | 2026-06-24 | **Mise en conformité du document avec l'application livrée.** Catalogue d'examens géré par l'admin (prix repris automatiquement) ; **commandes groupées** (plusieurs examens saisis/encaissés ensemble : un reçu, une feuille de saisie, un lien patient regroupant les résultats) ; **pré-inscription patient en ligne** (formulaire public + suivi par token + traitement à l'accueil) ; **envoi automatique du résultat par e-mail** (Resend) — l'exclusion §2.2 est levée pour l'e-mail ; interface **responsive mobile** (menu repliable, listes en cartes) — ENF-14 réalisé. |
 
 > Les exigences sont numérotées : **EF** = exigence fonctionnelle,
 > **ENF** = exigence non-fonctionnelle, **RG** = règle de gestion.
@@ -93,7 +94,8 @@ l'enregistrement du patient à la mise à disposition sécurisée des résultats
 - Génération de documents PDF (reçu, rapport).
 
 ### 2.2 Exclus (voir §15 — évolutions)
-- Envoi 100 % automatique des notifications (SMS/WhatsApp/e-mail).
+- Envoi automatique **SMS / WhatsApp** (le partage SMS/WhatsApp reste manuel via
+  message pré-rempli ; seul l'**e-mail** est envoyé automatiquement — cf. EF-50).
 - Espace patient authentifié.
 - Comptabilité avancée / facturation fiscale.
 - Application mobile native.
@@ -123,6 +125,8 @@ l'enregistrement du patient à la mise à disposition sécurisée des résultats
 | Démarrer / saisir un résultat | ✅ | ✅ | ❌ |
 | **Valider** un résultat | ✅ | ❌ | ✅ |
 | Liste des résultats | ✅ | ❌ | ✅ |
+| Gérer le **catalogue** d'examens | ✅ | ❌ | ❌ |
+| Traiter les **pré-inscriptions** | ✅ | ✅ | ❌ |
 | Gérer le personnel | ✅ | ❌ | ❌ |
 
 ---
@@ -232,6 +236,50 @@ l'enregistrement du patient à la mise à disposition sécurisée des résultats
 - **EF-40** — Partage du lien au patient via **WhatsApp / SMS / e-mail** (message
   pré-rempli) depuis la fiche examen, après validation.
 
+### 4.9 Catalogue d'examens
+- **EF-44** — **Catalogue des examens** proposés par le laboratoire (nom + prix),
+  géré par l'**administrateur** : liste paginée (5/page), recherche, temps réel.
+- **EF-45** — Ajout / modification (prix) / retrait d'un examen du catalogue.
+  Bouton **« Examens par défaut »** : pré-remplit une sélection d'analyses
+  courantes (cf. §16.1) à ajuster.
+- **EF-46** — À la création d'un examen patient, le **prix est repris du
+  catalogue** (plus de saisie manuelle du tarif).
+
+### 4.10 Commandes groupées
+- **EF-47** — **Commande** : à la création, le technicien **coche plusieurs
+  examens** du catalogue pour un même patient ; ils sont liés par un
+  `commandeId` et apparaissent comme **une seule ligne** dans les listes
+  (statut global = examen le moins avancé). Les examens antérieurs sans
+  `commandeId` restent affichés individuellement (rétro-compatibilité).
+- **EF-48** — **Encaissement groupé** : un seul paiement (montant = total de la
+  commande) et **un seul reçu PDF** pour toute la commande. Le sélecteur de
+  paiement distingue les commandes par matricule + date/heure.
+- **EF-49** — **Feuille de commande** : page de **saisie groupée des résultats**
+  des examens d'une commande. Après validation, le patient reçoit **un lien
+  unique** regroupant tous les résultats validés de la commande (snapshot public
+  multi-examens, cf. §9).
+
+### 4.11 Notification e-mail automatique
+- **EF-50** — **Envoi automatique du résultat par e-mail** au patient (service
+  **Resend**, appelé côté serveur depuis une route Next.js, sans Cloud
+  Function). Réservé au personnel authentifié ; le message contient le lien
+  sécurisé de consultation. Le partage **SMS / WhatsApp** reste manuel (EF-40).
+  *(Nécessite `RESEND_API_KEY` et un expéditeur `RESEND_FROM` vérifié.)*
+
+### 4.12 Pré-inscription patient en ligne
+- **EF-51** — **Formulaire public de pré-inscription** (sans connexion) : le futur
+  patient saisit son identité (prénom, nom, date de naissance, sexe, téléphone,
+  e-mail facultatif) et une note libre (ex. examens prescrits).
+- **EF-52** — Un **token** (~192 bits) est généré ; un **code court lisible**
+  (6 caractères) en est dérivé pour l'accueil. Le patient peut **suivre le
+  statut** de sa demande via un lien public (`/pre-inscription/statut/[token]`).
+- **EF-53** — **Traitement à l'accueil** (admin/technicien) : liste temps réel des
+  demandes **en attente** (recherche par code/nom/téléphone, pagination). Alerte
+  si le patient **existe déjà** ou si un **doublon en attente** est détecté.
+- **EF-54** — **Confirmation** : crée le dossier patient et la commande d'examens
+  via les flux existants, puis marque la demande `confirmée`. **Rejet** possible
+  (doublon / spam / erreur) → statut `rejetée`.
+
 ---
 
 ## 5. Workflow métier
@@ -303,7 +351,8 @@ Création patient (technicien/admin)
 - **ENF-12** — Application web accessible via navigateurs modernes (Chrome, Edge,
   Firefox, Safari).
 - **ENF-13** — Hébergement avec déploiement continu.
-- **ENF-14** — *(Évolution)* optimisation mobile (menu repliable).
+- **ENF-14** — ✅ Optimisation mobile : menu repliable (drawer), tableaux
+  défilables et listes en cartes empilées sur petit écran.
 
 ### 7.6 Maintenabilité
 - **ENF-15** — Code TypeScript typé, composants réutilisables, validations
@@ -321,10 +370,12 @@ Création patient (technicien/admin)
 | Authentification | Firebase Authentication |
 | Base de données | Cloud Firestore |
 | Documents PDF | jsPDF |
+| E-mail transactionnel | Resend (API REST appelée par une route serveur Next.js) |
 | Hébergement front | Vercel (CI/CD sur push GitHub) |
 | Backend données | Firebase (`laboratoire-f8e84`) |
 
-- Contrôle d'accès aux routes : **middleware** (lecture d'un cookie de session).
+- Contrôle d'accès aux routes : **proxy** Next.js 16 (`src/proxy.ts`, ex-
+  *middleware*) qui lit un **cookie de session JWT signé**.
 - Sécurité des données : **règles Firestore** déployées.
 
 ---
@@ -339,8 +390,13 @@ Création patient (technicien/admin)
 `sexe` (M|F|Autre), `telephone`, `email?`, `adresse?`, `groupeSanguin?`,
 `antecedents?`, `archive?`, `archiveAt?`, `createdAt`, `updatedAt`.
 
+### `catalogue_examens`
+`id`, `nom`, `prix`, `createdAt`, `updatedAt`. Catalogue des examens proposés
+(géré par l'admin) ; source du prix à la création d'un examen patient.
+
 ### `examens`
-`id`, `patientId`, `nomExamen`, `technicienId?`, `medecinId?`,
+`id`, `patientId`, `nomExamen`, `commandeId?` (regroupement « commande »),
+`technicienId?`, `medecinId?`,
 `statut` (en_attente|en_cours|termine|valide), `prix`, `createdAt`, `updatedAt`.
 
 ### `resultats`
@@ -349,15 +405,25 @@ Création patient (technicien/admin)
 `createdAt`.
 
 ### `paiements`
-`id`, `patientId`, `examenId`, `montant`, `statut` (paye|non_paye),
-`modePaiement?`, `detailPaiement?`, `referencePaiement?`, `createdAt`.
+`id`, `patientId`, `examenId`, `commandeId?` (encaissement groupé), `montant`,
+`statut` (paye|non_paye), `modePaiement?`, `detailPaiement?`,
+`referencePaiement?`, `createdAt`.
 
 ### `public_resultats/{token}`
 `token`, `examenNom?`, `patientPrenom?`, `patientNom?`, `dateNaissance?`,
 `sexe?`, `telephone?`, `groupeSanguin?`, `valeurs`, `observations?`,
-`valideAt`, `ref?`.
+`valideAt`, `ref?`, `examens?[]` (variante **commande** : un lien unique
+regroupant plusieurs examens validés — `{ examenNom?, valeurs, observations?, ref? }`).
 *(Snapshot public figé, sans référence interne ; enrichi de la démographie du
 patient pour le PDF officiel.)*
+
+### `preinscriptions/{token}`
+`token` (= id), `ref` (code court lisible), `nom`, `prenom`, `dateNaissance`,
+`sexe`, `telephone`, `email?`, `note?`,
+`statut` (en_attente|confirmee|rejetee), `createdAt`, et à la confirmation :
+`patientId?`, `commandeId?`, `confirmeAt?`, `confirmePar?`.
+*(Demande créée sans authentification ; suivi public par token, traitement par
+le personnel.)*
 
 ### `compteurs/{id}`
 Ex. `patients-2026` → `{ seq }`. Compteur séquentiel par année incrémenté en
@@ -376,11 +442,16 @@ transaction pour attribuer les matricules patients. Lecture authentifiée,
 | `/dashboard/patients/nouveau` | Nouveau patient | Admin, technicien |
 | `/dashboard/patients/[id]` | Fiche patient | Personnel |
 | `/dashboard/patients/[id]/modifier` | Modifier patient | Admin, technicien |
-| `/dashboard/examens` | Liste examens | Personnel |
+| `/dashboard/examens` | Liste examens (groupés par commande) | Personnel |
 | `/dashboard/examens/[id]` | Détail examen / saisie / validation | Personnel |
+| `/dashboard/commandes/[key]` | Feuille de commande (saisie groupée des résultats) | Personnel |
+| `/dashboard/catalogue` | Catalogue d'examens (nom + prix) | Admin |
 | `/dashboard/resultats` | Liste des résultats | Admin, médecin |
 | `/dashboard/paiements` | Paiements | Admin, technicien |
+| `/dashboard/pre-inscriptions` | Traitement des pré-inscriptions | Admin, technicien |
 | `/dashboard/personnel` | Gestion du personnel | Admin |
+| `/pre-inscription` | Formulaire de pré-inscription | Public |
+| `/pre-inscription/statut/[token]` | Suivi d'une pré-inscription | Public (lien) |
 | `/patient-portal/[token]` | Rapport patient | Public (lien) |
 
 ---
@@ -437,13 +508,16 @@ transaction pour attribuer les matricules patients. Lecture authentifiée,
 - Code source (dépôt GitHub).
 - Règles de sécurité Firestore.
 - Présent cahier des charges.
-- *(À prévoir)* guide utilisateur par rôle, procédure de sauvegarde.
+- ✅ Guide d'utilisation (`docs/GUIDE-UTILISATION.md`).
+- ✅ Checklist de recette T1→T10 (`docs/RECETTE.md`).
+- *(À prévoir)* procédure de sauvegarde / restauration.
 
 ---
 
 ## 15. Maintenance et évolutions futures
 
-1. **Notifications automatiques** (Twilio / API WhatsApp Business / SMTP).
+1. **Notifications automatiques SMS / WhatsApp** (Twilio / API WhatsApp Business)
+   — l'envoi e-mail automatique (Resend) est déjà en place (cf. EF-50).
 2. **Espace patient authentifié**.
 3. **Intégrité côté serveur** (Cloud Functions pour les suppressions/cascades).
 4. **Optimisation mobile** (menu repliable, ergonomie tactile).
@@ -469,4 +543,4 @@ Espèces, Mobile Money, Carte bancaire, Virement.
 
 ---
 
-*Fin du document — Cahier des charges LabMédical v1.0 (2026-06-08).*
+*Fin du document — Cahier des charges LabMédical v1.2 (2026-06-24).*

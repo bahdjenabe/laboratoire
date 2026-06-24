@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>RECETTE — LabMédical</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b; line-height: 1.55; font-size: 12px; margin: 0;
+  }
+  h1 { font-size: 24px; color: #065f46; border-bottom: 3px solid #10b981;
+       padding-bottom: 8px; margin-top: 0; }
+  h2 { font-size: 18px; color: #0f172a; margin-top: 28px;
+       border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+  h3 { font-size: 14px; color: #334155; margin-top: 18px; }
+  h2, h3 { page-break-after: avoid; }
+  p, li { font-size: 12px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px;
+         font-family: "Consolas", "Courier New", monospace; font-size: 11px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px;
+        overflow-x: auto; font-size: 11px; page-break-inside: avoid; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0;
+          font-size: 11px; page-break-inside: avoid; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 9px; text-align: left;
+           vertical-align: top; }
+  th { background: #f0fdf4; color: #065f46; font-weight: 700; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  blockquote { border-left: 4px solid #10b981; background: #f0fdf4;
+               margin: 10px 0; padding: 8px 14px; color: #475569;
+               border-radius: 0 6px 6px 0; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 22px 0; }
+  a { color: #059669; text-decoration: none; }
+  strong { color: #0f172a; }
+</style></head>
+<body><h1>Checklist de recette — LabMédical</h1>
+<p>Document de validation avant mise en production (phase P5 du cahier des charges).
+Cocher chaque critère après vérification sur l&#39;environnement de test
+(<strong><a href="https://laboratoire-delta.vercel.app">https://laboratoire-delta.vercel.app</a></strong>).</p>
+<table>
+<thead>
+<tr>
+<th>Élément</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Version testée</td>
+<td><em>(à compléter : commit / date)</em></td>
+</tr>
+<tr>
+<td>Testeur</td>
+<td>_______________________</td>
+</tr>
+<tr>
+<td>Date de recette</td>
+<td>_____ / _____ / __________</td>
+</tr>
+<tr>
+<td>Environnement</td>
+<td>☐ Test (Vercel)  ☐ Production</td>
+</tr>
+</tbody></table>
+<p><strong>Recette acceptée</strong> lorsque <strong>T1 → T10</strong> sont tous au vert.</p>
+<h3>Comptes de test nécessaires</h3>
+<p>Préparer un compte par rôle avant de commencer :</p>
+<ul>
+<li>☐ Administrateur — email : ________________________</li>
+<li>☐ Technicien — email : ________________________</li>
+<li>☐ Médecin — email : ________________________</li>
+</ul>
+<hr>
+<h2>T1 — Connexion par rôle  <em>(EF-01, EF-03, EF-04, ENF-11)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1.1</td>
+<td>Se connecter en <strong>technicien</strong></td>
+<td>Arrive sur le tableau de bord, menu sans « Résultats » ni « Catalogue » ni « Personnel »</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>1.2</td>
+<td>Se connecter en <strong>médecin</strong></td>
+<td>Atterrit sur la <strong>liste des résultats</strong> à valider ; menu adapté</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>1.3</td>
+<td>Se connecter en <strong>admin</strong></td>
+<td>Accès complet (Catalogue, Personnel, Suppressions visibles)</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>1.4</td>
+<td>Mauvais mot de passe</td>
+<td>Message d&#39;erreur clair, pas d&#39;accès</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>1.5</td>
+<td>« Mot de passe oublié ? »</td>
+<td>E-mail de réinitialisation reçu</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T2 — Création patient + examen  <em>(EF-12, EF-16, EF-17, EF-41)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2.1</td>
+<td>Créer un patient (technicien)</td>
+<td>Matricule <strong>P-AAAA-NNNN</strong> attribué automatiquement</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>2.2</td>
+<td>Nouvel examen → saisir le matricule puis rechercher</td>
+<td>La fiche patient s&#39;affiche, le reste du formulaire se débloque</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>2.3</td>
+<td>Cocher un ou plusieurs examens du catalogue</td>
+<td>Prix repris automatiquement, total affiché</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>2.4</td>
+<td>Valider</td>
+<td>Commande créée, examens en statut <strong>En attente</strong></td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T3 — Blocage paiement  <em>(EF-20, RG-01)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3.1</td>
+<td>Ouvrir un examen <strong>non payé</strong></td>
+<td>Bouton « Démarrer l&#39;analyse » bloqué / indisponible</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>3.2</td>
+<td>Tenter la saisie d&#39;un résultat avant paiement</td>
+<td>Impossible (action bloquée)</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T4 — Encaissement  <em>(EF-29, EF-30, EF-31)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4.1</td>
+<td>Nouveau paiement → choisir la commande par recherche</td>
+<td>Montant <strong>pré-rempli</strong> par le total de la commande</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>4.2</td>
+<td>Choisir un mode (Mobile Money / Carte / Virement)</td>
+<td>Détail adapté (opérateur / réseau / banque) + réf. facultative</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>4.3</td>
+<td>Enregistrer</td>
+<td>Examen(s) marqué(s) <strong>payé</strong></td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>4.4</td>
+<td>Télécharger le reçu 🧾</td>
+<td>PDF avec en-tête, cachet &amp; signature, mode + détail + référence</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T5 — Saisie + validation  <em>(EF-23, EF-24, EF-25, EF-26)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>5.1</td>
+<td>Technicien : « Démarrer l&#39;analyse »</td>
+<td>Examen passe en <strong>En cours</strong></td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>5.2</td>
+<td>Technicien : saisir paramètres/valeurs + observations</td>
+<td>Examen passe en <strong>Terminé</strong></td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>5.3</td>
+<td>Médecin : ouvrir le résultat et « Valider (médecin) »</td>
+<td>Statut <strong>Validé</strong> + horodatage</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>5.4</td>
+<td>Rouvrir un résultat validé</td>
+<td>Non modifiable (figé)</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>5.5</td>
+<td>Télécharger le rapport PDF</td>
+<td>En-tête, valeurs, <strong>cachet &amp; signature</strong> présents</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T6 — Portail patient  <em>(EF-37, EF-38, EF-39, ENF-04, ENF-06)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>6.1</td>
+<td>Ouvrir le lien token du résultat validé (sans connexion)</td>
+<td>Rapport affiché : patient, démographie, analyse, date de validation, valeurs</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>6.2</td>
+<td>Télécharger le PDF officiel côté patient</td>
+<td>Identique au PDF labo (cachet &amp; signature)</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>6.3</td>
+<td>Ouvrir un <strong>faux token</strong></td>
+<td>Page « indisponible », aucune donnée exposée</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>6.4</td>
+<td>Révoquer le lien puis le rouvrir</td>
+<td>Accès refusé après révocation</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T7 — Restrictions technicien  <em>(EF-03, RG-02, ENF-02)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>7.1</td>
+<td>Menu technicien</td>
+<td>Pas d&#39;entrée « Résultats »</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>7.2</td>
+<td>Accès direct à l&#39;URL <code>/dashboard/resultats</code> en technicien</td>
+<td>Redirigé (route bloquée par le proxy)</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>7.3</td>
+<td>Fiche examen en technicien</td>
+<td>Aucun bouton « Valider (médecin) »</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T8 — Intégrité des suppressions  <em>(EF-22, RG-04, RG-05)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>8.1</td>
+<td>Supprimer un examen ayant un résultat ou un paiement</td>
+<td>Refusé (message d&#39;erreur)</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>8.2</td>
+<td>« Supprimer » un patient (admin)</td>
+<td><strong>Archivé</strong> (suppression douce), historique conservé</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>8.3</td>
+<td>Restaurer un patient archivé</td>
+<td>Patient de nouveau actif</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>8.4</td>
+<td>Patient archivé sur une nouvelle saisie d&#39;examen</td>
+<td>Non proposé à la sélection</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T9 — Sécurité des rôles  <em>(EF-36, RG-06, ENF-03)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>9.1</td>
+<td>Un utilisateur tente de modifier <strong>son propre rôle</strong></td>
+<td>Interdit (admin inclus)</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>9.2</td>
+<td>Un non-admin tente d&#39;accéder à <code>/dashboard/personnel</code></td>
+<td>Redirigé / refusé</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>9.3</td>
+<td>Téléphone ou email en doublon à la création patient</td>
+<td>Refus avec message (RG-08)</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>T10 — Déconnexion automatique  <em>(EF-05, ENF-05)</em></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Étape</th>
+<th>Attendu</th>
+<th align="center">OK</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>10.1</td>
+<td>Laisser la session inactive (≈ 2 h)</td>
+<td>Modale « Toujours là ? » avec compte à rebours <strong>2 min</strong> avant</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>10.2</td>
+<td>« Rester connecté » dans la modale</td>
+<td>La session est prolongée</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>10.3</td>
+<td>Laisser le compte à rebours expirer</td>
+<td>Déconnexion automatique → page de connexion</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>10.4</td>
+<td>Déconnexion manuelle</td>
+<td>Bouton « Se déconnecter » fonctionne</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>Astuce pour T10 : pour ne pas attendre 2 h en test, vérifier le comportement du
+compte à rebours et de la prolongation, le délai d&#39;inactivité étant configuré
+dans le code (cf. <code>src/lib/idleActivity.ts</code> / <code>src/components/IdleLogout.tsx</code>).</p>
+</blockquote>
+<hr>
+<h2>Synthèse</h2>
+<table>
+<thead>
+<tr>
+<th>Scénario</th>
+<th align="center">Statut</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>T1 — Connexion par rôle</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T2 — Création patient + examen</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T3 — Blocage paiement</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T4 — Encaissement</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T5 — Saisie + validation</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T6 — Portail patient</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T7 — Restrictions technicien</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T8 — Intégrité suppressions</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T9 — Sécurité rôle</td>
+<td align="center">☐</td>
+</tr>
+<tr>
+<td>T10 — Déconnexion auto</td>
+<td align="center">☐</td>
+</tr>
+</tbody></table>
+<p><strong>Décision de recette :</strong> ☐ Acceptée  ☐ Acceptée avec réserves  ☐ Refusée</p>
+<p>Réserves / anomalies relevées :</p>
+<pre><code>_______________________________________________________________
+_______________________________________________________________
+_______________________________________________________________
+</code></pre>
+<p>Signature testeur : ____________________  Date : ____ / ____ / ________</p>
+<hr>
+<h2>Reste à faire avant production (phase P6)</h2>
+<ul>
+<li>☐ Recette T1 → T10 validée (ci-dessus)</li>
+<li>☐ Variables d&#39;environnement de production configurées sur Vercel
+(<code>RESEND_API_KEY</code>, <code>RESEND_FROM</code>, secret de session, config Firebase)</li>
+<li>☐ Expéditeur e-mail Resend vérifié (domaine ou <code>onboarding@resend.dev</code> pour les tests)</li>
+<li>☐ Règles Firestore (<code>src/firestore.rules</code>) déployées sur le projet <code>laboratoire-f8e84</code></li>
+<li>☐ RGPD / conservation des données de santé cadrés avec le client</li>
+<li>☐ Sauvegarde Firestore et procédure de restauration documentées</li>
+<li>☐ Formation des utilisateurs (cf. <code>docs/GUIDE-UTILISATION.md</code>)</li>
+</ul>
+</body></html>

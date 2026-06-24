@@ -23,7 +23,7 @@ const ROLE_DENIED_PATHS: Partial<Record<Role, string[]>> = {
   medecin: ['/dashboard/pre-inscriptions'],
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Laisser passer les routes publiques
