@@ -3,6 +3,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
   updateDoc,
   query,
   where,
@@ -96,6 +97,20 @@ export function subscribePreInscriptionsEnAttente(
       onData(list);
     },
     onError
+  );
+}
+
+// ── Récupérer les pré-inscriptions en attente (lecture ponctuelle) ──
+// Variante « one-shot » de subscribePreInscriptionsEnAttente, utilisée par
+// l'agrégation du tableau de bord (pas de temps réel nécessaire).
+export async function getPreInscriptionsEnAttente(): Promise<PreInscription[]> {
+  const q = query(
+    collection(db, COLLECTION),
+    where('statut', '==', 'en_attente')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(
+    (d) => ({ token: d.id, ...d.data() }) as PreInscription
   );
 }
 

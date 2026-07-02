@@ -70,6 +70,27 @@ const formatDate = (value: unknown): string => {
     : "—";
 };
 
+// « AAAA-M » (mois indexé sur 0) → « Février 2026 ».
+const formatMoisFiltre = (key: string): string => {
+  const [y, m] = key.split("-").map(Number);
+  const label = new Date(y, m, 1).toLocaleDateString("fr-FR", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+// Conversions entre la clé interne « AAAA-M » (mois 0-based, sans zéro) et la
+// valeur de l'<input type="month"> qui est « AAAA-MM » (mois 1-based, paddé).
+const keyToInput = (key: string): string => {
+  const [y, m] = key.split("-").map(Number);
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+};
+const inputToKey = (val: string): string => {
+  const [y, mm] = val.split("-").map(Number);
+  return `${y}-${mm - 1}`;
+};
+
 // Active une ligne au clavier (Entrée / Espace) comme un bouton.
 const onActivate =
   (action: () => void) => (e: React.KeyboardEvent<HTMLElement>) => {
@@ -96,6 +117,8 @@ export default function PaiementsPage() {
   const router = useRouter();
 
   const [filtre, setFiltre] = useState<"tous" | "paye" | "non_paye">("tous");
+  // Filtre par mois civil « AAAA-M » (lien profond depuis le tableau de bord).
+  const [moisFiltre, setMoisFiltre] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showConfirm, setShowConfirm] = useState<CommandePaiements | null>(null);
@@ -153,11 +176,15 @@ export default function PaiementsPage() {
   // pour saisir les résultats (la cible est dérivée de la commande payée).
   const [cameFromDeepLink, setCameFromDeepLink] = useState(false);
   useEffect(() => {
-    const k = new URLSearchParams(window.location.search).get("commande");
+    const params = new URLSearchParams(window.location.search);
+    const k = params.get("commande");
     if (k) {
       setPendingCommande(k);
       setCameFromDeepLink(true);
     }
+    const m = params.get("mois");
+    // Format attendu « AAAA-M » (mois indexé sur 0, comme Date.getMonth()).
+    if (m && /^\d{4}-\d{1,2}$/.test(m)) setMoisFiltre(m);
   }, []);
   useEffect(() => {
     if (!pendingCommande) return;
@@ -189,8 +216,24 @@ export default function PaiementsPage() {
     .filter((p) => p.statut === "non_paye")
     .reduce((s, p) => s + (p.montant || 0), 0);
 
+  // Total encaissé (payé) du mois filtré — indépendant du statut/recherche,
+  // pour refléter le même revenu que le tableau de bord.
+  const totalMoisFiltre = moisFiltre
+    ? paiements
+        .filter((p) => {
+          if (p.statut !== "paye") return false;
+          const d = toDate(p.createdAt);
+          return d && `${d.getFullYear()}-${d.getMonth()}` === moisFiltre;
+        })
+        .reduce((s, p) => s + (p.montant || 0), 0)
+    : 0;
+
   const filtered = paiements.filter((p) => {
     if (filtre !== "tous" && p.statut !== filtre) return false;
+    if (moisFiltre) {
+      const d = toDate(p.createdAt);
+      if (!d || `${d.getFullYear()}-${d.getMonth()}` !== moisFiltre) return false;
+    }
     const s = search.toLowerCase();
     if (!s) return true;
     return (
@@ -203,7 +246,7 @@ export default function PaiementsPage() {
   const commandes = useMemo(() => grouperPaiements(filtered), [filtered]);
 
   const { pageItems, page, totalPages, setPage, from, to, total } =
-    usePagination(commandes, 6, `${search}|${filtre}`);
+    usePagination(commandes, 6, `${search}|${filtre}|${moisFiltre ?? ""}`);
 
   // Lignes dépliées (clé de commande).
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -490,7 +533,43 @@ export default function PaiementsPage() {
               focus:ring-2 focus:ring-emerald-500/10 transition-all"
           />
         </div>
+        {/* Sélecteur de mois : filtre les paiements sur un mois précis. */}
+        <input
+          type="month"
+          value={moisFiltre ? keyToInput(moisFiltre) : ""}
+          onChange={(e) =>
+            setMoisFiltre(e.target.value ? inputToKey(e.target.value) : null)
+          }
+          title="Filtrer par mois"
+          className="h-11 px-3.5 bg-white border border-slate-200 rounded-xl
+            text-sm text-slate-900 focus:outline-none focus:border-emerald-500
+            focus:ring-2 focus:ring-emerald-500/10 transition-all"
+        />
       </div>
+
+      {/* Filtre mois actif (lien profond depuis le tableau de bord) */}
+      {moisFiltre && (
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full
+              bg-violet-50 text-violet-700 border border-violet-200 text-sm font-medium"
+          >
+            📅 {formatMoisFiltre(moisFiltre)}
+            <span className="text-violet-400">·</span>
+            <span className="font-bold text-violet-800">
+              {formatGNF(totalMoisFiltre)} encaissés
+            </span>
+            <button
+              onClick={() => setMoisFiltre(null)}
+              title="Retirer le filtre du mois"
+              className="w-5 h-5 flex items-center justify-center rounded-full
+                text-violet-500 hover:bg-violet-200 hover:text-violet-800 transition-colors"
+            >
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Résumé suppression multiple */}
       {bulkMsg && (
